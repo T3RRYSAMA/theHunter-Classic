@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conversor Mejores Puntuaciones - theHunter (con Arma y Fecha)</title>
+    <title>Conversor Mejores Puntuaciones - theHunter (Automático 1 clic)</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -43,18 +43,20 @@
             background-color: #2c6e4f;
             border: none;
             color: white;
-            padding: 10px 24px;
-            font-size: 1rem;
+            padding: 12px 28px;
+            font-size: 1.1rem;
             font-weight: bold;
             border-radius: 9999px;
             cursor: pointer;
             margin-right: 1rem;
             margin-bottom: 1rem;
+            transition: 0.2s;
         }
         button:hover {
             background-color: #3e8e6b;
+            transform: scale(1.02);
         }
-        .btn-copy {
+        .btn-copy-manual {
             background-color: #3b5e7a;
         }
         .result-area {
@@ -102,26 +104,43 @@
             color: #94a3b8;
             margin-top: 10px;
         }
+        .status {
+            background-color: #1e2a3a;
+            border-left: 4px solid #fbbf24;
+            padding: 8px 12px;
+            margin-top: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🦌 Conversor de Mejores Puntuaciones - theHunter (Arma y Fecha)</h1>
-    <p>Pega el contenido de la página <strong>"Mejores puntuaciones personales"</strong>. El script extrae para cada especie su mejor puntuación, el arma utilizada y la fecha de captura (formato ISO, compatible con Excel).</p>
-    <textarea id="inputData" placeholder="Pega aquí todo el texto copiado desde la página web..."></textarea>
-    <div>
-        <button id="processBtn">Procesar y extraer</button>
-        <button id="copyTextBtn" class="btn-copy">Copiar resultado tabulado (Excel)</button>
+    <h1>🦌 Conversor Mejores Puntuaciones - theHunter (1 clic)</h1>
+    <p>Haz clic en <strong>"PROCESAR"</strong> y el script leerá automáticamente el contenido del portapapeles (lo que copiaste de la página de estadísticas), extraerá todos los datos y copiará el resultado al portapapeles. ¡Listo para pegar en Excel!</p>
+    
+    <div class="status" id="statusMsg">
+        ✅ Listo. Copia los datos desde la página web y presiona "PROCESAR".
     </div>
+    
+    <textarea id="inputData" placeholder="Opcional: Si la lectura automática falla, puedes pegar manualmente aquí el contenido de la página."></textarea>
+    
+    <div>
+        <button id="autoProcessBtn">🚀 PROCESAR (1 clic)</button>
+        <button id="manualCopyBtn" class="btn-copy-manual">📋 Copiar manualmente el resultado (de la tabla de abajo)</button>
+    </div>
+    
     <div class="result-area">
         <div class="result-header">📊 Tabla de resultados</div>
-        <div id="resultTableContainer">👉 Presiona "Procesar"</div>
+        <div id="resultTableContainer">👉 Presiona "PROCESAR" para iniciar.</div>
         <hr>
-        <div class="result-header">📄 Texto con tabulaciones (listo para pegar en Excel)</div>
+        <div class="result-header">📄 Texto tabulado (resultado actual)</div>
         <div id="outputText" class="output-text"></div>
     </div>
     <div class="note">
-        💡 Las fechas se muestran en formato <code>YYYY-MM-DD HH:MM</code> (sin zona horaria). Excel las reconocerá automáticamente como fecha/hora.
+        💡 Las fechas se muestran en formato <code>YYYY-MM-DD HH:MM</code> (sin zona horaria). Excel las reconocerá automáticamente.<br>
+        🔄 Si la lectura del portapapeles falla, verifica que hayas copiado texto de la página y que el navegador tenga permisos (puede pedir confirmación la primera vez). 
     </div>
 </div>
 <script>
@@ -145,7 +164,7 @@
         return rawLine.replace(/\s*\([^)]*\)/g, '').trim();
     }
 
-    // Verificar si una línea es una especie válida (comparación insensible a mayúsculas/minúsculas)
+    // Verificar si una línea es una especie válida
     function esEspecieValida(line) {
         const nombreLimpio = normalizarNombre(line);
         return ESPECIES_OFICIALES.has(nombreLimpio);
@@ -165,18 +184,16 @@
         return match ? match[1] : "Usuario";
     }
 
-    // Limpiar fecha: eliminar "ART" y espacios sobrantes, asegurar formato HH:MM con dos dígitos
+    // Limpiar fecha: eliminar "ART", ajustar hora a dos dígitos
     function limpiarFecha(fechaRaw) {
-        // Ejemplo de entrada: "2021-06-02 01:53 ART" o "2021-06-02 1:53 ART"
         let fecha = fechaRaw.replace(/\s*ART\s*/i, '').trim();
-        // Asegurar que la hora tenga dos dígitos (ej. "1:53" -> "01:53")
         fecha = fecha.replace(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})/, (match, date, hour, minute) => {
             return `${date} ${hour.padStart(2, '0')}:${minute}`;
         });
         return fecha;
     }
 
-    // Analizar el texto y devolver array de objetos con especie, puntuacion, arma, fecha
+    // Analizar el texto y devolver array de objetos
     function parseBestScores(text, username) {
         const lines = text.split(/\r?\n/);
         const resultados = [];
@@ -190,20 +207,16 @@
                 continue;
             }
 
-            // Detectar especie
             if (esEspecieValida(line)) {
                 let especieLimpia = normalizarNombre(line);
-                
-                // Buscar la puntuación y los datos asociados (arma y fecha) dentro del bloque
                 let puntuacion = null;
                 let arma = null;
                 let fecha = null;
                 
                 let j = i + 1;
-                while (j < total && j < i + 25) { // Buscar en las siguientes 25 líneas
+                while (j < total && j < i + 25) {
                     const currLine = lines[j].trim();
                     
-                    // Buscar "Puntuación:"
                     if (currLine === "Puntuación:" || currLine.startsWith("Puntuación:")) {
                         if (j + 1 < total) {
                             const scoreLine = lines[j+1].trim();
@@ -214,14 +227,12 @@
                         }
                     }
                     
-                    // Buscar "Armas utilizadas:"
                     if (currLine === "Armas utilizadas:" || currLine.startsWith("Armas utilizadas:")) {
                         if (j + 1 < total) {
                             arma = lines[j+1].trim();
                         }
                     }
                     
-                    // Buscar "Fecha de captura:"
                     if (currLine === "Fecha de captura:" || currLine.startsWith("Fecha de captura:")) {
                         if (j + 1 < total) {
                             let fechaRaw = lines[j+1].trim();
@@ -229,15 +240,11 @@
                         }
                     }
                     
-                    // Si ya tenemos los tres datos, podemos salir
                     if (puntuacion && arma && fecha) break;
-                    
                     j++;
                 }
                 
-                // Si encontramos puntuación (al menos) entonces almacenamos
                 if (puntuacion) {
-                    // Evitar duplicados exactos de especie
                     if (resultados.length === 0 || resultados[resultados.length-1].especie !== especieLimpia) {
                         resultados.push({
                             especie: especieLimpia,
@@ -247,22 +254,18 @@
                         });
                     }
                 }
-                // Avanzar el índice hasta después del bloque procesado
                 i = j + 1;
             } else {
                 i++;
             }
         }
         
-        // Post-procesamiento: asegurar que todas las especies que aparecen en el texto estén incluidas
-        // (respaldo por si alguna no se capturó por variaciones en el formato)
+        // Respaldo: si alguna especie oficial aparece en el texto pero no fue capturada
         for (let especie of ESPECIES_OFICIALES) {
             if (!resultados.some(r => r.especie === especie)) {
                 const regex = new RegExp(`^${especie.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s*\\([^)]*\\))?$`, 'm');
                 if (regex.test(text)) {
-                    const index = text.search(regex);
-                    const afterText = text.substring(index);
-                    // Extraer puntuación, arma y fecha con expresiones regulares sobre el bloque
+                    const afterText = text.substring(text.search(regex));
                     const scoreMatch = afterText.match(/Puntuación:\s*\n\s*(\d+(?:\.\d+)?)/);
                     const armaMatch = afterText.match(/Armas utilizadas:\s*\n\s*([^\n]+)/);
                     const fechaMatch = afterText.match(/Fecha de captura:\s*\n\s*([^\n]+)/);
@@ -279,15 +282,13 @@
         return resultados;
     }
 
-    // Generar texto tabulado con 5 columnas: Usuario, Especie, Puntuación, Arma, Fecha
     function generateTabText(username, data) {
         return data.map(item => `${username}\t${item.especie}\t${item.puntuacion}\t${item.arma}\t${item.fecha}`).join('\n');
     }
 
-    // Generar tabla HTML
     function generateHtmlTable(username, data) {
-        if (!data.length) return '<p style="color:#f88;">⚠️ No se encontraron datos. Verifica que el texto contenga animales y puntuaciones.</p>';
-        let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación (mejor)</th><th>Arma utilizada</th><th>Fecha captura</th></tr></thead><tbody>`;
+        if (!data.length) return '<p style="color:#f88;">⚠️ No se encontraron datos.</p>';
+        let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
         for (let item of data) {
             html += `<tr>
                 <td>${escapeHtml(username)}</td>
@@ -311,34 +312,70 @@
         });
     }
 
-    function process() {
-        const raw = document.getElementById('inputData').value;
-        if (!raw.trim()) {
-            alert("Por favor, pega el contenido de la página web.");
-            return;
-        }
-        const username = extractUsername(raw);
-        const results = parseBestScores(raw, username);
-        if (results.length === 0) {
-            document.getElementById('resultTableContainer').innerHTML = '<p style="color:#f88;">❌ No se pudo extraer ninguna puntuación. Revisa que el texto tenga el formato esperado.</p>';
-            document.getElementById('outputText').innerText = '';
-            return;
-        }
-        document.getElementById('resultTableContainer').innerHTML = generateHtmlTable(username, results);
-        document.getElementById('outputText').innerText = generateTabText(username, results);
+    // Función principal que procesa el texto y actualiza todo, devolviendo el texto tabulado
+    function procesarTexto(rawText) {
+        if (!rawText || !rawText.trim()) throw new Error("El texto está vacío");
+        const username = extractUsername(rawText);
+        const results = parseBestScores(rawText, username);
+        if (results.length === 0) throw new Error("No se pudo extraer ninguna puntuación. Revisa el formato del texto.");
+        const tablaHtml = generateHtmlTable(username, results);
+        const txtTabulado = generateTabText(username, results);
+        document.getElementById('resultTableContainer').innerHTML = tablaHtml;
+        document.getElementById('outputText').innerText = txtTabulado;
+        return txtTabulado;
     }
 
-    function copy() {
-        const text = document.getElementById('outputText').innerText;
-        if (!text) {
-            alert("No hay resultado para copiar. Procesa primero.");
-            return;
+    // Función principal del flujo automático
+    async function procesarAutomatico() {
+        const statusDiv = document.getElementById('statusMsg');
+        try {
+            statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
+            // Leer desde el portapapeles
+            let clipboardText = "";
+            try {
+                clipboardText = await navigator.clipboard.readText();
+            } catch (clipErr) {
+                console.warn("Error al leer portapapeles:", clipErr);
+                // Si falla, intentar usar el contenido del textarea como respaldo
+                clipboardText = document.getElementById('inputData').value;
+                if (!clipboardText.trim()) {
+                    throw new Error("No se pudo leer el portapapeles y el área de texto está vacía. Asegúrate de haber copiado el contenido de la página web o pégalo manualmente.");
+                }
+                statusDiv.innerHTML = "⚠️ No se pudo leer el portapapeles, pero se usó el texto del área manual.";
+            }
+            
+            if (!clipboardText.trim()) {
+                throw new Error("El contenido del portapapeles está vacío. Copia los datos desde la página de theHunter y vuelve a intentar.");
+            }
+            
+            statusDiv.innerHTML = "⚙️ Procesando datos...";
+            const resultadoTabulado = procesarTexto(clipboardText);
+            
+            // Copiar al portapapeles automáticamente
+            await navigator.clipboard.writeText(resultadoTabulado);
+            statusDiv.innerHTML = "✅ ¡Completado! El resultado tabulado (con arma y fecha) se ha copiado al portapapeles. Ya puedes pegarlo en Excel.";
+            
+        } catch (error) {
+            console.error(error);
+            statusDiv.innerHTML = `❌ Error: ${error.message}`;
         }
-        navigator.clipboard.writeText(text).then(() => alert("✅ Resultado copiado al portapapeles. Ya puedes pegarlo en Excel.")).catch(() => alert("Error al copiar."));
     }
 
-    document.getElementById('processBtn').addEventListener('click', process);
-    document.getElementById('copyTextBtn').addEventListener('click', copy);
+    // Función para copiar manualmente el resultado actual (sin reprocesar)
+    function copiarResultadoManual() {
+        const texto = document.getElementById('outputText').innerText;
+        if (!texto || texto.trim() === "") {
+            alert("No hay resultado para copiar. Primero presiona 'PROCESAR (1 clic)'.");
+            return;
+        }
+        navigator.clipboard.writeText(texto).then(() => {
+            alert("✅ Resultado copiado al portapapeles manualmente.");
+        }).catch(() => alert("Error al copiar."));
+    }
+
+    // Eventos
+    document.getElementById('autoProcessBtn').addEventListener('click', procesarAutomatico);
+    document.getElementById('manualCopyBtn').addEventListener('click', copiarResultadoManual);
 </script>
 </body>
 </html>
