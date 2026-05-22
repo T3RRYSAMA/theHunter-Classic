@@ -83,11 +83,10 @@ class MyBot(discord.Client):
 client = MyBot()
 
 # ==========================================
-# 3. LÓGICA DE DETECCIÓN INTELIGENTE (Doble Modo)
+# 3. LÓGICA DE DETECCIÓN INTELIGENTE
 # ==========================================
 def buscar_en_tabla(termino_busqueda, usuario_discord):
     global datos_depuracion
-    # Guardamos la consulta incluyendo de manera limpia el nombre de usuario de Discord
     datos_depuracion["ultima_consulta"] = f"'{termino_busqueda}' por @{usuario_discord}"
     
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtxyD8vW8K5yRaI53IpO2zu_seN9Zqq-lvFMWkQj6egxfs6cYGOQ-Rn1GABbij3X2_tACiFoVMT3jo/pub?gid=1783876917&output=csv"
@@ -107,11 +106,14 @@ def buscar_en_tabla(termino_busqueda, usuario_discord):
             datos_depuracion["ultima_respuesta"] = msg_err
             return f"No se pudo acceder a la tabla (Status: {response.status_code})."
         
+        # SOLUCIÓN DEL ERROR DE CARACTERES: Forzamos decodificación UTF-8
+        response.encoding = 'utf-8'
+        
         lineas = response.text.splitlines()
         datos_depuracion["filas_detectadas"] = len(lineas)
         
         # ----------------------------------------------------
-        # MODO JUGADOR: Verificar si se buscó a un participante
+        # MODO JUGADOR
         # ----------------------------------------------------
         jugador_objetivo = next((j for j in jugadores if termino_busqueda.lower() == j.lower()), None)
         
@@ -128,7 +130,6 @@ def buscar_en_tabla(termino_busqueda, usuario_discord):
                 max_player = "Nadie"
                 max_score_str = "0"
                 
-                # Calculamos el ganador real de esta fila concreta
                 for i, jugador in enumerate(jugadores):
                     col_idx = 2 + i
                     if col_idx < len(fila):
@@ -142,7 +143,6 @@ def buscar_en_tabla(termino_busqueda, usuario_discord):
                         except ValueError:
                             continue
                 
-                # Si el líder de esta fila es el jugador que buscamos, lo agendamos
                 if max_player == jugador_objetivo and max_score > -1.0:
                     animales_liderados.append(f"• **{animal_tabla}**: `{max_score_str}`")
             
@@ -159,7 +159,7 @@ def buscar_en_tabla(termino_busqueda, usuario_discord):
             return respuesta
 
         # ----------------------------------------------------
-        # MODO ANIMAL: Si no es jugador, procesa como especie (Original)
+        # MODO ANIMAL
         # ----------------------------------------------------
         lector_csv = csv.reader(lineas)
         for fila in lector_csv:
@@ -216,10 +216,7 @@ def buscar_en_tabla(termino_busqueda, usuario_discord):
 @app_commands.describe(buscar="Escribe un animal (ej: Corzo) o un jugador (ej: T3RRYSAMA)")
 async def bot_command(interaction: discord.Interaction, buscar: str):
     await interaction.response.defer()
-    
-    # Obtenemos el nombre visible del usuario que invocó el comando
     usuario_discord = interaction.user.display_name
-    
     resultado = buscar_en_tabla(buscar, usuario_discord)
     await interaction.followup.send(resultado)
 
