@@ -83,18 +83,20 @@ class MyBot(discord.Client):
 client = MyBot()
 
 # ==========================================
-# 3. LÓGICA DE BÚSQUEDA MEDIANTE CSV (Corregida)
+# 3. LÓGICA DE DETECCIÓN AVANZADA
 # ==========================================
 def buscar_en_tabla(termino_busqueda):
     global datos_depuracion
     datos_depuracion["ultima_consulta"] = termino_busqueda
     
-    # URL corregida usando el conector '&' válido para separar los parámetros de Google
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtxyD8vW8K5yRaI53IpO2zu_seN9Zqq-lvFMWkQj6egxfs6cYGOQ-Rn1GABbij3X2_tACiFoVMT3jo/pub?gid=1783876917&output=csv"
     
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
     }
+    
+    # Mapeo estricto de jugadores según el orden exacto de tus columnas (Índices 2 al 9)
+    jugadores = ["Alexor", "br1b3b3", "Cecinauta", "Chulen", "Guiyerom", "T3RRYSAMA", "ToraCRF", "VittoSca"]
     
     try:
         response = requests.get(url, headers=headers)
@@ -111,18 +113,48 @@ def buscar_en_tabla(termino_busqueda):
         lector_csv = csv.reader(lineas)
         
         for fila in lector_csv:
-            celdas_limpias = [celda.strip() for celda in fila if celda.strip()]
-            
-            if not celdas_limpias:
+            if len(fila) < 2:
                 continue
+            
+            animal_tabla = fila[1].strip()
+            
+            # Comparación flexible sin distinguir mayúsculas ni minúsculas
+            if termino_busqueda.lower() in animal_tabla.lower():
+                record_global = fila[0].strip()
                 
-            if any(termino_busqueda.lower() in cld.lower() for cld in celdas_limpias):
-                resultado_formateado = " | ".join(f"**{cld}**" for cld in celdas_limpias)
-                respuesta = f"🔍 **Resultado encontrado:** {resultado_formateado}"
+                max_score = -1.0
+                max_player = "Nadie"
+                max_score_str = "0"
+                
+                # Buscamos el puntaje más alto recorriendo las columnas de los jugadores
+                for i, jugador in enumerate(jugadores):
+                    col_idx = 2 + i  # Las puntuaciones arrancan en la columna índice 2
+                    if col_idx < len(fila):
+                        val_str = fila[col_idx].strip()
+                        try:
+                            # Cambiamos la coma por un punto para que Python lo procese como número decimal
+                            val_float = float(val_str.replace(',', '.'))
+                            if val_float > max_score:
+                                max_score = val_float
+                                max_player = jugador
+                                max_score_str = val_str
+                        except ValueError:
+                            # Ignora celdas vacías, guiones o textos que no sean numéricos
+                            continue
+                
+                if max_score > -1.0:
+                    respuesta = (
+                        f"🦌 **{animal_tabla}**\n"
+                        f"🥇 **Máximo Puntaje:** `{max_score_str}` — **{max_player}**\n"
+                        f"🌐 *Récord global registrado:* {record_global}"
+                    )
+                else:
+                    respuesta = f"⚠️ Encontré **{animal_tabla}**, pero ningún jugador tiene una marca registrada en la tabla."
+                
                 datos_depuracion["ultima_respuesta"] = respuesta
                 return respuesta
                     
-        msg_vacio = f"❌ No encontré información sobre '{termino_busqueda}' en la tabla."
+        msg_vacio = f"❌ No encontré ningún animal que coincida con '{termino_busqueda}'."
         datos_depuracion["ultima_respuesta"] = msg_vacio
         return msg_vacio
         
