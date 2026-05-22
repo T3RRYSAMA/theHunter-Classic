@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: bot-discord-sheets
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn bot:app & python bot.py
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
