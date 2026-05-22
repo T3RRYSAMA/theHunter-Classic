@@ -83,11 +83,12 @@ class MyBot(discord.Client):
 client = MyBot()
 
 # ==========================================
-# 3. LÓGICA DE DETECCIÓN AVANZADA
+# 3. LÓGICA DE DETECCIÓN INTELIGENTE (Doble Modo)
 # ==========================================
-def buscar_en_tabla(termino_busqueda):
+def buscar_en_tabla(termino_busqueda, usuario_discord):
     global datos_depuracion
-    datos_depuracion["ultima_consulta"] = termino_busqueda
+    # Guardamos la consulta incluyendo de manera limpia el nombre de usuario de Discord
+    datos_depuracion["ultima_consulta"] = f"'{termino_busqueda}' por @{usuario_discord}"
     
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtxyD8vW8K5yRaI53IpO2zu_seN9Zqq-lvFMWkQj6egxfs6cYGOQ-Rn1GABbij3X2_tACiFoVMT3jo/pub?gid=1783876917&output=csv"
     
@@ -95,7 +96,6 @@ def buscar_en_tabla(termino_busqueda):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
     }
     
-    # Mapeo estricto de jugadores según el orden exacto de tus columnas (Índices 2 al 9)
     jugadores = ["Alexor", "br1b3b3", "Cecinauta", "Chulen", "Guiyerom", "T3RRYSAMA", "ToraCRF", "VittoSca"]
     
     try:
@@ -110,36 +110,81 @@ def buscar_en_tabla(termino_busqueda):
         lineas = response.text.splitlines()
         datos_depuracion["filas_detectadas"] = len(lineas)
         
-        lector_csv = csv.reader(lineas)
+        # ----------------------------------------------------
+        # MODO JUGADOR: Verificar si se buscó a un participante
+        # ----------------------------------------------------
+        jugador_objetivo = next((j for j in jugadores if termino_busqueda.lower() == j.lower()), None)
         
-        for fila in lector_csv:
-            if len(fila) < 2:
-                continue
+        if jugador_objetivo:
+            lector_csv = csv.reader(lineas)
+            animales_liderados = []
             
-            animal_tabla = fila[1].strip()
-            
-            # Comparación flexible sin distinguir mayúsculas ni minúsculas
-            if termino_busqueda.lower() in animal_tabla.lower():
-                record_global = fila[0].strip()
+            for fila in lector_csv:
+                if len(fila) < 2:
+                    continue
                 
+                animal_tabla = fila[1].strip()
                 max_score = -1.0
                 max_player = "Nadie"
                 max_score_str = "0"
                 
-                # Buscamos el puntaje más alto recorriendo las columnas de los jugadores
+                # Calculamos el ganador real de esta fila concreta
                 for i, jugador in enumerate(jugadores):
-                    col_idx = 2 + i  # Las puntuaciones arrancan en la columna índice 2
+                    col_idx = 2 + i
                     if col_idx < len(fila):
                         val_str = fila[col_idx].strip()
                         try:
-                            # Cambiamos la coma por un punto para que Python lo procese como número decimal
                             val_float = float(val_str.replace(',', '.'))
                             if val_float > max_score:
                                 max_score = val_float
                                 max_player = jugador
                                 max_score_str = val_str
                         except ValueError:
-                            # Ignora celdas vacías, guiones o textos que no sean numéricos
+                            continue
+                
+                # Si el líder de esta fila es el jugador que buscamos, lo agendamos
+                if max_player == jugador_objetivo and max_score > -1.0:
+                    animales_liderados.append(f"• **{animal_tabla}**: `{max_score_str}`")
+            
+            if animales_liderados:
+                lista_formateada = "\n".join(animales_liderados)
+                respuesta = (
+                    f"👤 **Perfil de Cazador:** {jugador_objetivo}\n"
+                    f"👑 Posee el puntaje más alto en **{len(animales_liderados)}** especies:\n\n{lista_formateada}"
+                )
+            else:
+                respuesta = f"👤 **Perfil de Cazador:** {jugador_objetivo}\n❌ Actualmente no lidera el ranking en ningún animal."
+            
+            datos_depuracion["ultima_respuesta"] = respuesta
+            return respuesta
+
+        # ----------------------------------------------------
+        # MODO ANIMAL: Si no es jugador, procesa como especie (Original)
+        # ----------------------------------------------------
+        lector_csv = csv.reader(lineas)
+        for fila in lector_csv:
+            if len(fila) < 2:
+                continue
+            
+            animal_tabla = fila[1].strip()
+            
+            if termino_busqueda.lower() in animal_tabla.lower():
+                record_global = fila[0].strip()
+                max_score = -1.0
+                max_player = "Nadie"
+                max_score_str = "0"
+                
+                for i, jugador in enumerate(jugadores):
+                    col_idx = 2 + i
+                    if col_idx < len(fila):
+                        val_str = fila[col_idx].strip()
+                        try:
+                            val_float = float(val_str.replace(',', '.'))
+                            if val_float > max_score:
+                                max_score = val_float
+                                max_player = jugador
+                                max_score_str = val_str
+                        except ValueError:
                             continue
                 
                 if max_score > -1.0:
@@ -149,12 +194,12 @@ def buscar_en_tabla(termino_busqueda):
                         f"🌐 *Récord global registrado:* {record_global}"
                     )
                 else:
-                    respuesta = f"⚠️ Encontré **{animal_tabla}**, pero ningún jugador tiene una marca registrada en la tabla."
+                    respuesta = f"⚠️ Encontré **{animal_tabla}**, pero no hay marcas registradas."
                 
                 datos_depuracion["ultima_respuesta"] = respuesta
                 return respuesta
                     
-        msg_vacio = f"❌ No encontré ningún animal que coincida con '{termino_busqueda}'."
+        msg_vacio = f"❌ No encontré resultados para '{termino_busqueda}' (no coincide con un jugador ni con un animal)."
         datos_depuracion["ultima_respuesta"] = msg_vacio
         return msg_vacio
         
@@ -167,11 +212,15 @@ def buscar_en_tabla(termino_busqueda):
 # ==========================================
 # 4. COMANDO DEL BOT
 # ==========================================
-@client.tree.command(name="bot", description="Busca estadísticas en la tabla")
-@app_commands.describe(buscar="Término o animal a buscar")
+@client.tree.command(name="bot", description="Busca estadísticas de animales o jugadores")
+@app_commands.describe(buscar="Escribe un animal (ej: Corzo) o un jugador (ej: T3RRYSAMA)")
 async def bot_command(interaction: discord.Interaction, buscar: str):
     await interaction.response.defer()
-    resultado = buscar_en_tabla(buscar)
+    
+    # Obtenemos el nombre visible del usuario que invocó el comando
+    usuario_discord = interaction.user.display_name
+    
+    resultado = buscar_en_tabla(buscar, usuario_discord)
     await interaction.followup.send(resultado)
 
 # ==========================================
