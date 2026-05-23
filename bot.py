@@ -5,51 +5,39 @@ import csv
 import os
 import asyncio
 from flask import Flask
-from threading import Thread
-
-# ==========================================
-# VARIABLES GLOBALES PARA DEPURACIÓN WEB
-# ==========================================
-datos_depuracion = {
-    "ultima_consulta": "Ninguna todavía",
-    "ultima_respuesta": "Ninguna todavía",
-    "status_tabla": "No consultado",
-    "filas_detectadas": 0,
-    "ultimo_error": "Ninguno"
-}
+from multiprocessing import Process
 
 # ==========================================
 # 1. SERVIDOR WEB CON PANEL DE CONTROL
 # ==========================================
+# Nota: Al usar multiprocess, Flask corre aislado para no bloquear a Discord
 app = Flask('')
 
 @app.route('/')
 def home():
-    html = f"""
+    # Renderizamos una estructura HTML liviana pero efectiva
+    html = """
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
-        <title>Panel de Depuración - RI2</title>
+        <title>Panel de Control - RI2</title>
         <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #f4f6f9; color: #333; }}
-            .card {{ background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 650px; margin: 0 auto; }}
-            h1 {{ color: #2c3e50; border-bottom: 2px solid #f1f3f5; padding-bottom: 15px; margin-top: 0; }}
-            .metric {{ margin: 18px 0; font-size: 16px; display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f3f5; padding-bottom: 8px; }}
-            .label {{ font-weight: bold; color: #7f8c8d; }}
-            .value {{ color: #2980b9; font-family: monospace; font-size: 15px; text-align: right; max-width: 60%; }}
-            .success {{ color: #27ae60; font-weight: bold; }}
+            body { font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #f4f6f9; color: #333; }
+            .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 650px; margin: 0 auto; }
+            h1 { color: #2c3e50; border-bottom: 2px solid #f1f3f5; padding-bottom: 15px; margin-top: 0; }
+            .metric { margin: 18px 0; font-size: 16px; display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f3f5; padding-bottom: 8px; }
+            .label { font-weight: bold; color: #7f8c8d; }
+            .value { color: #2980b9; font-family: monospace; font-size: 15px; text-align: right; }
+            .success { color: #27ae60; font-weight: bold; }
         </style>
     </head>
     <body>
         <div class="card">
-            <h1>🛠️ Panel de Depuración (RI2)</h1>
-            <div class="metric"><span class="label">Estado del Bot:</span> <span class="success">ONLINE 🟢</span></div>
-            <div class="metric"><span class="label">Última consulta (Discord):</span> <span class="value">{datos_depuracion['ultima_consulta']}</span></div>
-            <div class="metric"><span class="label">Última respuesta:</span> <span class="value">{datos_depuracion['ultima_respuesta']}</span></div>
-            <div class="metric"><span class="label">Código HTTP Google Sheets:</span> <span class="value">{datos_depuracion['status_tabla']}</span></div>
-            <div class="metric"><span class="label">Filas totales detectadas:</span> <span class="value">{datos_depuracion['filas_detectadas']}</span></div>
-            <div class="metric"><span class="label">Último error registrado:</span> <span class="value" style="color: #c0392b;">{datos_depuracion['ultimo_error']}</span></div>
+            <h1>🛠️ Servidor Activo (RI2)</h1>
+            <div class="metric"><span class="label">Estado del Entorno:</span> <span class="success">ONLINE 🟢</span></div>
+            <div class="metric"><span class="label">Motor Web:</span> <span class="value">Aislado mediante Multiprocess</span></div>
+            <div class="metric"><span class="label">Monitoreo Render:</span> <span class="value">Recibiendo pings correctamente</span></div>
         </div>
     </body>
     </html>
@@ -58,7 +46,8 @@ def home():
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    # Desactivamos el reloader para evitar ejecuciones dobles en servidores cloud
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 # ==========================================
 # 2. CONFIGURACIÓN DE DISCORD
@@ -83,12 +72,9 @@ class MyBot(discord.Client):
 client = MyBot()
 
 # ==========================================
-# 3. LÓGICA DE DETECCIÓN INTELIGENTE
+# 3. LÓGICA DE DETECCIÓN DE DATOS
 # ==========================================
 def buscar_en_tabla(termino_busqueda, usuario_discord):
-    global datos_depuracion
-    datos_depuracion["ultima_consulta"] = f"'{termino_busqueda}' por @{usuario_discord}"
-    
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtxyD8vW8K5yRaI53IpO2zu_seN9Zqq-lvFMWkQj6egxfs6cYGOQ-Rn1GABbij3X2_tACiFoVMT3jo/pub?gid=1783876917&output=csv"
     
     headers = {
@@ -98,23 +84,14 @@ def buscar_en_tabla(termino_busqueda, usuario_discord):
     jugadores = ["Alexor", "br1b3b3", "Cecinauta", "Chulen", "Guiyerom", "T3RRYSAMA", "ToraCRF", "VittoSca"]
     
     try:
-        response = requests.get(url, headers=headers)
-        datos_depuracion["status_tabla"] = str(response.status_code)
-        
+        response = requests.get(url, headers=headers, timeout=10)
         if response.status_code != 200:
-            msg_err = f"Error HTTP {response.status_code}"
-            datos_depuracion["ultima_respuesta"] = msg_err
             return f"No se pudo acceder a la tabla (Status: {response.status_code})."
         
-        # SOLUCIÓN DEL ERROR DE CARACTERES: Forzamos decodificación UTF-8
         response.encoding = 'utf-8'
-        
         lineas = response.text.splitlines()
-        datos_depuracion["filas_detectadas"] = len(lineas)
         
-        # ----------------------------------------------------
         # MODO JUGADOR
-        # ----------------------------------------------------
         jugador_objetivo = next((j for j in jugadores if termino_busqueda.lower() == j.lower()), None)
         
         if jugador_objetivo:
@@ -148,19 +125,14 @@ def buscar_en_tabla(termino_busqueda, usuario_discord):
             
             if animales_liderados:
                 lista_formateada = "\n".join(animales_liderados)
-                respuesta = (
+                return (
                     f"👤 **Perfil de Cazador:** {jugador_objetivo}\n"
                     f"👑 Posee el puntaje más alto en **{len(animales_liderados)}** especies:\n\n{lista_formateada}"
                 )
             else:
-                respuesta = f"👤 **Perfil de Cazador:** {jugador_objetivo}\n❌ Actualmente no lidera el ranking en ningún animal."
-            
-            datos_depuracion["ultima_respuesta"] = respuesta
-            return respuesta
+                return f"👤 **Perfil de Cazador:** {jugador_objetivo}\n❌ Actualmente no lidera el ranking en ningún animal."
 
-        # ----------------------------------------------------
         # MODO ANIMAL
-        # ----------------------------------------------------
         lector_csv = csv.reader(lineas)
         for fila in lector_csv:
             if len(fila) < 2:
@@ -188,26 +160,18 @@ def buscar_en_tabla(termino_busqueda, usuario_discord):
                             continue
                 
                 if max_score > -1.0:
-                    respuesta = (
+                    return (
                         f"🦌 **{animal_tabla}**\n"
                         f"🥇 **Máximo Puntaje:** `{max_score_str}` — **{max_player}**\n"
                         f"🌐 *Récord global registrado:* {record_global}"
                     )
                 else:
-                    respuesta = f"⚠️ Encontré **{animal_tabla}**, pero no hay marcas registradas."
-                
-                datos_depuracion["ultima_respuesta"] = respuesta
-                return respuesta
+                    return f"⚠️ Encontré **{animal_tabla}**, pero no hay marcas registradas."
                     
-        msg_vacio = f"❌ No encontré resultados para '{termino_busqueda}' (no coincide con un jugador ni con un animal)."
-        datos_depuracion["ultima_respuesta"] = msg_vacio
-        return msg_vacio
+        return f"❌ No encontré resultados para '{termino_busqueda}'."
         
     except Exception as e:
-        error_str = str(e)
-        datos_depuracion["ultimo_error"] = error_str
-        datos_depuracion["ultima_respuesta"] = f"Fallo interno: {error_str}"
-        return f"⚠️ Error interno al procesar la tabla: {error_str}"
+        return f"⚠️ Error interno al procesar la tabla: {str(e)}"
 
 # ==========================================
 # 4. COMANDO DEL BOT
@@ -217,19 +181,26 @@ def buscar_en_tabla(termino_busqueda, usuario_discord):
 async def bot_command(interaction: discord.Interaction, buscar: str):
     await interaction.response.defer()
     usuario_discord = interaction.user.display_name
-    resultado = buscar_en_tabla(buscar, usuario_discord)
+    
+    # Ejecutamos la búsqueda pesada de forma asíncrona usando el pool de hilos de Discord
+    loop = asyncio.get_running_loop()
+    resultado = await loop.run_in_executor(None, buscar_en_tabla, buscar, usuario_discord)
+    
     await interaction.followup.send(resultado)
 
 # ==========================================
-# 5. CONTROL DE ARRANQUE SIMULTÁNEO
+# 5. CONTROL DE ARRANQUE EN PARALELO
 # ==========================================
 if __name__ == "__main__":
-    Thread(target=run_web).start()
+    # Arrancamos Flask en un proceso totalmente separado del sistema operativo
+    proceso_web = Process(target=run_web)
+    proceso_web.daemon = True
+    proceso_web.start()
     
     if not TOKEN:
         print("❌ CRÍTICO: La variable DISCORD_TOKEN está vacía.")
     else:
-        print(f"🔹 Intentando conectar a Discord...")
+        print(f"🔹 Iniciando núcleo de Discord...")
         try:
             client.run(TOKEN)
         except Exception as e:
