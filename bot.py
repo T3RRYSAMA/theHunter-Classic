@@ -83,9 +83,34 @@ class MyBot(discord.Client):
 client = MyBot()
 
 # ==========================================
-# 3. LÓGICA DE DETECCIÓN ASÍNCRONA
+# 3. LIMPIADOR DE FORMATO NUMÉRICO REGIONAL
 # ==========================================
-# Ejecuta la descarga HTTP en un hilo secundario para evitar congelar el loop de Discord
+def convertir_puntaje(val_str):
+    """
+    Normaliza strings numéricos complejos de hojas de cálculo (ej: '3.873,1428' o '3,873.14')
+    a un valor float válido para Python.
+    """
+    limpio = val_str.strip().replace(" ", "")
+    if not limpio:
+        raise ValueError("Celda vacía")
+        
+    # Si contiene tanto puntos como comas (ej: 3.873,1428)
+    if "." in limpio and "," in limpio:
+        if limpio.rfind(",") > limpio.rfind("."):
+            # Formato europeo/argentino: 3.873,14 -> quitamos punto, cambiamos coma por punto
+            limpio = limpio.replace(".", "").replace(",", ".")
+        else:
+            # Formato norteamericano: 3,873.14 -> quitamos coma
+            limpio = limpio.replace(",", "")
+    # Si solo tiene comas, asumimos que son los decimales
+    elif "," in limpio and "." not in limpio:
+        limpio = limpio.replace(",", ".")
+        
+    return float(limpio)
+
+# ==========================================
+# 4. LÓGICA DE DETECCIÓN ASÍNCRONA
+# ==========================================
 def descargar_datos_sincrono():
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtxyD8vW8K5yRaI53IpO2zu_seN9Zqq-lvFMWkQj6egxfs6cYGOQ-Rn1GABbij3X2_tACiFoVMT3jo/pub?gid=1783876917&output=csv"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -100,7 +125,6 @@ async def buscar_en_tabla(termino_busqueda, usuario_discord):
     jugadores = ["Alexor", "br1b3b3", "Cecinauta", "Chulen", "Guiyerom", "T3RRYSAMA", "ToraCRF", "VittoSca"]
     
     try:
-        # Forzamos que la descarga no bloquee de forma asíncrona
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(None, descargar_datos_sincrono)
         
@@ -137,7 +161,7 @@ async def buscar_en_tabla(termino_busqueda, usuario_discord):
                     if col_idx < len(fila):
                         val_str = fila[col_idx].strip()
                         try:
-                            val_float = float(val_str.replace(',', '.'))
+                            val_float = convertir_puntaje(val_str)
                             if val_float > max_score:
                                 max_score = val_float
                                 max_player = jugador
@@ -181,7 +205,7 @@ async def buscar_en_tabla(termino_busqueda, usuario_discord):
                     if col_idx < len(fila):
                         val_str = fila[col_idx].strip()
                         try:
-                            val_float = float(val_str.replace(',', '.'))
+                            val_float = convertir_puntaje(val_str)
                             if val_float > max_score:
                                 max_score = val_float
                                 max_player = jugador
@@ -212,7 +236,7 @@ async def buscar_en_tabla(termino_busqueda, usuario_discord):
         return f"⚠️ Error interno al procesar la tabla: {error_str}"
 
 # ==========================================
-# 4. COMANDO DEL BOT
+# 5. COMANDO DEL BOT
 # ==========================================
 @client.tree.command(name="bot", description="Busca estadísticas de animales o jugadores")
 @app_commands.describe(buscar="Escribe un animal (ej: Corzo) o un jugador (ej: T3RRYSAMA)")
@@ -220,15 +244,13 @@ async def bot_command(interaction: discord.Interaction, buscar: str):
     await interaction.response.defer()
     usuario_discord = interaction.user.display_name
     
-    # Llamamos a la lógica asíncrona unificada
     resultado = await buscar_en_tabla(buscar, usuario_discord)
     await interaction.followup.send(resultado)
 
 # ==========================================
-# 5. CONTROL DE ARRANQUE EN PARALELO
+# 6. CONTROL DE ARRANQUE EN PARALELO
 # ==========================================
 if __name__ == "__main__":
-    # Flask vuelve a correr en un hilo secundario tradicional para compartir memoria global
     proceso_web = Thread(target=run_web)
     proceso_web.daemon = True
     proceso_web.start()
