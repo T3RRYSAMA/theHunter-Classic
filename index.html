@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conversor Mejores Puntuaciones - theHunter (Automático 1 clic)</title>
+    <title>theHunter Data Processor - Mejores Puntuaciones y Competencias (v2)</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #1e2a2e;
@@ -26,9 +29,40 @@
             margin-top: 0;
             margin-bottom: 0.5rem;
         }
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #334155;
+        }
+        .tab-btn {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1rem;
+            font-weight: bold;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            border-radius: 0.5rem 0.5rem 0 0;
+            transition: 0.2s;
+        }
+        .tab-btn.active {
+            background-color: #2c4c40;
+            color: #fbbf24;
+        }
+        .tab-btn:hover:not(.active) {
+            background-color: #1e3a3a;
+            color: #cbd5e1;
+        }
+        .tab-pane {
+            display: none;
+        }
+        .tab-pane.active {
+            display: block;
+        }
         textarea {
             width: 100%;
-            height: 250px;
+            height: 200px;
             background-color: #1e293b;
             border: 1px solid #334155;
             color: #e2e8f0;
@@ -43,8 +77,8 @@
             background-color: #2c6e4f;
             border: none;
             color: white;
-            padding: 12px 28px;
-            font-size: 1.1rem;
+            padding: 10px 24px;
+            font-size: 1rem;
             font-weight: bold;
             border-radius: 9999px;
             cursor: pointer;
@@ -55,9 +89,6 @@
         button:hover {
             background-color: #3e8e6b;
             transform: scale(1.02);
-        }
-        .btn-copy-manual {
-            background-color: #3b5e7a;
         }
         .result-area {
             background-color: #0a0f1a;
@@ -81,8 +112,13 @@
         th {
             background-color: #2c4c40;
             color: #fbbf24;
+            cursor: pointer;
+            user-select: none;
             position: sticky;
             top: 0;
+        }
+        th:hover {
+            background-color: #3e6b5c;
         }
         .output-text {
             background-color: #0f172a;
@@ -99,52 +135,63 @@
             border-color: #2d3a4f;
             margin: 1rem 0;
         }
-        .note {
-            font-size: 0.8rem;
-            color: #94a3b8;
-            margin-top: 10px;
-        }
         .status {
             background-color: #1e2a3a;
             border-left: 4px solid #fbbf24;
             padding: 8px 12px;
-            margin-top: 15px;
             margin-bottom: 15px;
             border-radius: 8px;
             font-size: 0.9rem;
+        }
+        .sort-indicator {
+            font-size: 0.7rem;
+            margin-left: 5px;
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🦌 Conversor Mejores Puntuaciones - theHunter (1 clic)</h1>
-    <p>Haz clic en <strong>"PROCESAR"</strong> y el script leerá automáticamente el contenido del portapapeles (lo que copiaste de la página de estadísticas), extraerá todos los datos y copiará el resultado al portapapeles. ¡Listo para pegar en Excel!</p>
-    
-    <div class="status" id="statusMsg">
-        ✅ Listo. Copia los datos desde la página web y presiona "PROCESAR".
+    <h1>🦌 theHunter Data Processor</h1>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="scores">🏆 Mejores Puntuaciones</button>
+        <button class="tab-btn" data-tab="comps">⚔️ Competencias</button>
     </div>
-    
-    <textarea id="inputData" placeholder="Opcional: Si la lectura automática falla, puedes pegar manualmente aquí el contenido de la página."></textarea>
-    
-    <div>
-        <button id="autoProcessBtn">🚀 PROCESAR (1 clic)</button>
-        <button id="manualCopyBtn" class="btn-copy-manual">📋 Copiar manualmente el resultado (de la tabla de abajo)</button>
+
+    <!-- Pestaña Mejores Puntuaciones (código probado) -->
+    <div id="scores-tab" class="tab-pane active">
+        <p>Pega el contenido de la página <strong>"Mejores puntuaciones personales"</strong>.</p>
+        <textarea id="scoresInput" placeholder="Pega aquí el contenido copiado..."></textarea>
+        <button id="processScoresBtn">🚀 PROCESAR (leer portapapeles)</button>
+        <div class="status" id="scoresStatus">✅ Listo.</div>
+        <div class="result-area">
+            <div class="result-header">📊 Tabla de Mejores Puntuaciones</div>
+            <div id="scoresTableContainer">👉 Presiona "PROCESAR"</div>
+            <hr>
+            <div class="result-header">📄 Texto tabulado (copiable para Excel)</div>
+            <div id="scoresOutput" class="output-text"></div>
+        </div>
     </div>
-    
-    <div class="result-area">
-        <div class="result-header">📊 Tabla de resultados</div>
-        <div id="resultTableContainer">👉 Presiona "PROCESAR" para iniciar.</div>
-        <hr>
-        <div class="result-header">📄 Texto tabulado (resultado actual)</div>
-        <div id="outputText" class="output-text"></div>
-    </div>
-    <div class="note">
-        💡 Las fechas se muestran en formato <code>YYYY-MM-DD HH:MM</code> (sin zona horaria). Excel las reconocerá automáticamente.<br>
-        🔄 Si la lectura del portapapeles falla, verifica que hayas copiado texto de la página y que el navegador tenga permisos (puede pedir confirmación la primera vez). 
+
+    <!-- Pestaña Competencias (corregida) -->
+    <div id="comps-tab" class="tab-pane">
+        <p>Pega el contenido de la página <strong>"Competencias"</strong> (selecciona todo desde la página de competiciones). Se extraen las competiciones inscritas y se ordenan por: fecha final más próxima → menos intentos restantes → menos jugadores.</p>
+        <textarea id="compsInput" placeholder="Pega aquí el contenido copiado..."></textarea>
+        <button id="processCompsBtn">🚀 PROCESAR (leer portapapeles)</button>
+        <div class="status" id="compsStatus">✅ Listo.</div>
+        <div class="result-area">
+            <div class="result-header">📊 Tabla de Competencias (ordenada por urgencia)</div>
+            <div id="compsTableContainer">👉 Presiona "PROCESAR"</div>
+            <hr>
+            <div class="result-header">📄 Texto tabulado (copiable para Excel)</div>
+            <div id="compsOutput" class="output-text"></div>
+        </div>
     </div>
 </div>
+
 <script>
-    // ----- LISTA OFICIAL DE ESPECIES (proporcionada por el usuario) -----
+    // --------------------------------------------------------------
+    // 1. MEJORES PUNTUACIONES (código ya probado, sin cambios)
+    // --------------------------------------------------------------
     const ESPECIES_OFICIALES = new Set([
         "Alce", "Banteng", "Bisonte", "Búfalo de Agua", "Cabra Salvaje", "Canguro rojo",
         "Carnero de Dall", "Cerdo Salvaje", "Ciervo Axis", "Ciervo Mulo", "Ciervo Rojo",
@@ -159,32 +206,22 @@
         "Ánade Real", "Ánade Sombrío Americano", "Íbice Alpino"
     ]);
 
-    // Normalizar nombre de especie (quitar paréntesis y espacios)
     function normalizarNombre(rawLine) {
         return rawLine.replace(/\s*\([^)]*\)/g, '').trim();
     }
-
-    // Verificar si una línea es una especie válida
     function esEspecieValida(line) {
-        const nombreLimpio = normalizarNombre(line);
-        return ESPECIES_OFICIALES.has(nombreLimpio);
+        return ESPECIES_OFICIALES.has(normalizarNombre(line));
     }
-
-    // Extraer nombre del cazador
     function extractUsername(text) {
         const lines = text.split(/\r?\n/);
         for (let i = 0; i < lines.length - 1; i++) {
             const curr = lines[i].trim();
             const next = lines[i+1].trim();
-            if (curr && !curr.includes(' ') && next.includes('Hunter') && !next.includes('Cazador')) {
-                return curr;
-            }
+            if (curr && !curr.includes(' ') && next.includes('Hunter') && !next.includes('Cazador')) return curr;
         }
         const match = text.match(/(?:Configuración\s+\d+)?([A-Za-z0-9_]+)\s*\nHunter/);
         return match ? match[1] : "Usuario";
     }
-
-    // Limpiar fecha: eliminar "ART", ajustar hora a dos dígitos
     function limpiarFecha(fechaRaw) {
         let fecha = fechaRaw.replace(/\s*ART\s*/i, '').trim();
         fecha = fecha.replace(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})/, (match, date, hour, minute) => {
@@ -192,190 +229,254 @@
         });
         return fecha;
     }
-
-    // Analizar el texto y devolver array de objetos
     function parseBestScores(text, username) {
         const lines = text.split(/\r?\n/);
         const resultados = [];
-        let i = 0;
-        const total = lines.length;
-
+        let i = 0, total = lines.length;
         while (i < total) {
             let line = lines[i].trim();
-            if (line === "") {
-                i++;
-                continue;
-            }
-
+            if (line === "") { i++; continue; }
             if (esEspecieValida(line)) {
                 let especieLimpia = normalizarNombre(line);
-                let puntuacion = null;
-                let arma = null;
-                let fecha = null;
-                
+                let puntuacion = null, arma = null, fecha = null;
                 let j = i + 1;
                 while (j < total && j < i + 25) {
-                    const currLine = lines[j].trim();
-                    
-                    if (currLine === "Puntuación:" || currLine.startsWith("Puntuación:")) {
-                        if (j + 1 < total) {
+                    const curr = lines[j].trim();
+                    if (curr === "Puntuación:" || curr.startsWith("Puntuación:")) {
+                        if (j+1 < total) {
                             const scoreLine = lines[j+1].trim();
-                            const matchScore = scoreLine.match(/^(\d+(?:\.\d+)?)/);
-                            if (matchScore) {
-                                puntuacion = matchScore[1].replace('.', ',');
-                            }
+                            const match = scoreLine.match(/^(\d+(?:\.\d+)?)/);
+                            if (match) puntuacion = match[1].replace('.', ',');
                         }
                     }
-                    
-                    if (currLine === "Armas utilizadas:" || currLine.startsWith("Armas utilizadas:")) {
-                        if (j + 1 < total) {
-                            arma = lines[j+1].trim();
-                        }
+                    if (curr === "Armas utilizadas:" || curr.startsWith("Armas utilizadas:")) {
+                        if (j+1 < total) arma = lines[j+1].trim();
                     }
-                    
-                    if (currLine === "Fecha de captura:" || currLine.startsWith("Fecha de captura:")) {
-                        if (j + 1 < total) {
-                            let fechaRaw = lines[j+1].trim();
-                            fecha = limpiarFecha(fechaRaw);
-                        }
+                    if (curr === "Fecha de captura:" || curr.startsWith("Fecha de captura:")) {
+                        if (j+1 < total) fecha = limpiarFecha(lines[j+1].trim());
                     }
-                    
                     if (puntuacion && arma && fecha) break;
                     j++;
                 }
-                
                 if (puntuacion) {
                     if (resultados.length === 0 || resultados[resultados.length-1].especie !== especieLimpia) {
-                        resultados.push({
-                            especie: especieLimpia,
-                            puntuacion: puntuacion,
-                            arma: arma || "",
-                            fecha: fecha || ""
-                        });
+                        resultados.push({ especie: especieLimpia, puntuacion, arma: arma || "", fecha: fecha || "" });
                     }
                 }
                 i = j + 1;
-            } else {
-                i++;
-            }
+            } else { i++; }
         }
-        
-        // Respaldo: si alguna especie oficial aparece en el texto pero no fue capturada
-        for (let especie of ESPECIES_OFICIALES) {
-            if (!resultados.some(r => r.especie === especie)) {
-                const regex = new RegExp(`^${especie.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s*\\([^)]*\\))?$`, 'm');
-                if (regex.test(text)) {
-                    const afterText = text.substring(text.search(regex));
-                    const scoreMatch = afterText.match(/Puntuación:\s*\n\s*(\d+(?:\.\d+)?)/);
-                    const armaMatch = afterText.match(/Armas utilizadas:\s*\n\s*([^\n]+)/);
-                    const fechaMatch = afterText.match(/Fecha de captura:\s*\n\s*([^\n]+)/);
-                    if (scoreMatch) {
-                        const punt = scoreMatch[1].replace('.', ',');
-                        const arm = armaMatch ? armaMatch[1].trim() : "";
-                        const fec = fechaMatch ? limpiarFecha(fechaMatch[1].trim()) : "";
-                        resultados.push({ especie, puntuacion: punt, arma: arm, fecha: fec });
-                    }
-                }
-            }
-        }
-        
         return resultados;
     }
-
-    function generateTabText(username, data) {
+    function generateScoresTabText(username, data) {
         return data.map(item => `${username}\t${item.especie}\t${item.puntuacion}\t${item.arma}\t${item.fecha}`).join('\n');
     }
-
-    function generateHtmlTable(username, data) {
-        if (!data.length) return '<p style="color:#f88;">⚠️ No se encontraron datos.</p>';
+    function generateScoresHtmlTable(username, data) {
+        if (!data.length) return '<p>No hay datos</p>';
         let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
-        for (let item of data) {
+        for (let item of data) html += `<tr><td>${escapeHtml(username)}</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td></tr>`;
+        html += `</tbody></table>`;
+        return html;
+    }
+
+    // --------------------------------------------------------------
+    // 2. COMPETENCIAS (CORREGIDO: intentos restantes = primer número)
+    // --------------------------------------------------------------
+    function cleanSpeciesNameForComp(name) {
+        return name.replace(/\s*\(Típico\)/g, '').trim();
+    }
+
+    function parseCompetitions(text) {
+        const lines = text.split(/\r?\n/);
+        const competitions = [];
+        let i = 0;
+        // Buscar inicio de "Enrolled competitions"
+        while (i < lines.length && !lines[i].trim().startsWith("Enrolled competitions")) i++;
+        if (i >= lines.length) return [];
+        // Saltar encabezados de tabla (Nombre, Intentos, Posición, Inicio, Final, Estado, Acción)
+        i++; // saltar línea "Enrolled competitions (XX)"
+        while (i < lines.length && (lines[i].trim() === "" || lines[i].includes("Nombre de Competición") || lines[i].includes("Intentos"))) i++;
+        // Ahora i apunta a la primera línea de nombre de competición
+        while (i < lines.length) {
+            const nombre = lines[i].trim();
+            if (nombre === "" || nombre.startsWith("Competiciones próximas") || nombre.startsWith("Competiciones anteriores") || nombre.startsWith("Saved competitions")) break;
+            if (i+7 >= lines.length) break;
+            const especiesRaw = lines[i+1].trim();
+            const intentosRaw = lines[i+2].trim();
+            const posicion = lines[i+3].trim();
+            const inicio = lines[i+4].trim();
+            const final = lines[i+5].trim();
+            const estado = lines[i+6].trim();
+            // La línea i+7 es "Desactivar ❚❚" o similar, no la usamos
+            
+            // Extraer modalidad y limpiar especies
+            let modalidad = "";
+            let especiesLimpia = especiesRaw;
+            if (especiesRaw.includes("Un jugador")) {
+                modalidad = "Un jugador";
+                especiesLimpia = especiesRaw.replace("Un jugador", "").trim();
+            } else if (especiesRaw.includes("Multijugador")) {
+                modalidad = "Multijugador";
+                especiesLimpia = especiesRaw.replace("Multijugador", "").trim();
+            }
+            
+            // Reemplazar " (Típico)" en cada especie
+            especiesLimpia = especiesLimpia.replace(/\s*\(Típico\)/g, '');
+            // Separar especies múltiples. Podría contener varios nombres separados por espacios, pero como tienen espacios internos, usamos detección por lista de especies.
+            const speciesSet = new Set();
+            for (let sp of ESPECIES_OFICIALES) {
+                if (especiesLimpia.includes(sp)) {
+                    speciesSet.add(sp);
+                }
+            }
+            let especiesFinal = Array.from(speciesSet).join(" + ");
+            if (especiesFinal === "") especiesFinal = especiesLimpia;
+            
+            // Intentos: el primer número son los restantes
+            const intentosMatch = intentosRaw.match(/(\d+)\s*\/\s*(\d+)/);
+            let intentosRestantes = 0;
+            let intentosTotal = 0;
+            if (intentosMatch) {
+                intentosRestantes = parseInt(intentosMatch[1]);  // CORRECCIÓN: primer número es restantes
+                intentosTotal = parseInt(intentosMatch[2]);
+            }
+            
+            // Número de jugadores: en el texto proporcionado por el usuario, la columna "Jugadores" no aparecía en la sección inscrita.
+            // Para que funcione, dejamos un valor por defecto 0. El usuario podrá añadirlo manualmente si su copia incluye esa columna.
+            let jugadores = 0;
+            // Buscar en líneas cercanas algún número que pueda ser jugadores (si aparece una línea con solo número)
+            for (let k = i+8; k < Math.min(i+12, lines.length); k++) {
+                const possible = lines[k].trim();
+                if (/^\d+$/.test(possible)) {
+                    jugadores = parseInt(possible);
+                    break;
+                }
+            }
+            
+            competitions.push({
+                nombre: nombre,
+                especies: especiesFinal,
+                intentosRaw: intentosRaw,
+                intentosRestantes: intentosRestantes,
+                intentosTotal: intentosTotal,
+                posicion: posicion,
+                inicio: inicio,
+                final: final,
+                estado: estado,
+                modalidad: modalidad,
+                jugadores: jugadores
+            });
+            i += 8; // pasar al siguiente bloque
+            // Saltar líneas vacías que pudieran quedar
+            while (i < lines.length && lines[i].trim() === "") i++;
+        }
+        return competitions;
+    }
+
+    function sortCompetitions(comps) {
+        function parseDate(str) {
+            const months = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
+            const parts = str.split(' ');
+            if (parts.length < 3) return new Date(0);
+            const month = months[parts[0]];
+            const day = parseInt(parts[1].replace(/th|st|nd|rd/, ''));
+            const time = parts[2];
+            const [hour, minute] = time.split(':');
+            const year = new Date().getFullYear();
+            let dateObj = new Date(year, month, day, parseInt(hour), parseInt(minute));
+            if (dateObj < new Date() && month < new Date().getMonth()) dateObj.setFullYear(year+1);
+            return dateObj;
+        }
+        return comps.sort((a,b) => {
+            // 1. Fecha final más próxima
+            const dateA = parseDate(a.final);
+            const dateB = parseDate(b.final);
+            if (dateA - dateB !== 0) return dateA - dateB;
+            // 2. Intentos restantes (menor primero)
+            if (a.intentosRestantes !== b.intentosRestantes) return a.intentosRestantes - b.intentosRestantes;
+            // 3. Jugadores (menor primero)
+            return a.jugadores - b.jugadores;
+        });
+    }
+
+    function generateCompsTabText(comps) {
+        return comps.map(c => `${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.modalidad}`).join('\n');
+    }
+
+    function generateCompsHtmlTable(comps) {
+        if (!comps.length) return '<p>No se encontraron competiciones.</p>';
+        let html = `<table><thead><tr><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th></tr></thead><tbody>`;
+        for (let c of comps) {
             html += `<tr>
-                <td>${escapeHtml(username)}</td>
-                <td>${escapeHtml(item.especie)}</td>
-                <td>${escapeHtml(item.puntuacion)}</td>
-                <td>${escapeHtml(item.arma)}</td>
-                <td>${escapeHtml(item.fecha)}</td>
+                <td>${escapeHtml(c.especies)}</td>
+                <td>${escapeHtml(c.nombre)}</td>
+                <td>${escapeHtml(c.intentosRaw)}</td>
+                <td>${escapeHtml(c.posicion)}</td>
+                <td>${escapeHtml(c.inicio)}</td>
+                <td>${escapeHtml(c.final)}</td>
+                <td>${c.jugadores}</td>
+                <td>${escapeHtml(c.modalidad)}</td>
             </tr>`;
         }
         html += `</tbody></table>`;
         return html;
     }
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, function(m) {
-            if (m === '&') return '&amp;';
-            if (m === '<') return '&lt;';
-            if (m === '>') return '&gt;';
-            return m;
-        });
-    }
+    function escapeHtml(str) { return String(str).replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
 
-    // Función principal que procesa el texto y actualiza todo, devolviendo el texto tabulado
-    function procesarTexto(rawText) {
-        if (!rawText || !rawText.trim()) throw new Error("El texto está vacío");
-        const username = extractUsername(rawText);
-        const results = parseBestScores(rawText, username);
-        if (results.length === 0) throw new Error("No se pudo extraer ninguna puntuación. Revisa el formato del texto.");
-        const tablaHtml = generateHtmlTable(username, results);
-        const txtTabulado = generateTabText(username, results);
-        document.getElementById('resultTableContainer').innerHTML = tablaHtml;
-        document.getElementById('outputText').innerText = txtTabulado;
-        return txtTabulado;
-    }
-
-    // Función principal del flujo automático
-    async function procesarAutomatico() {
-        const statusDiv = document.getElementById('statusMsg');
+    // Procesadores con lectura de portapapeles
+    async function processScores() {
+        const statusDiv = document.getElementById('scoresStatus');
         try {
             statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
-            // Leer desde el portapapeles
-            let clipboardText = "";
-            try {
-                clipboardText = await navigator.clipboard.readText();
-            } catch (clipErr) {
-                console.warn("Error al leer portapapeles:", clipErr);
-                // Si falla, intentar usar el contenido del textarea como respaldo
-                clipboardText = document.getElementById('inputData').value;
-                if (!clipboardText.trim()) {
-                    throw new Error("No se pudo leer el portapapeles y el área de texto está vacía. Asegúrate de haber copiado el contenido de la página web o pégalo manualmente.");
-                }
-                statusDiv.innerHTML = "⚠️ No se pudo leer el portapapeles, pero se usó el texto del área manual.";
-            }
-            
-            if (!clipboardText.trim()) {
-                throw new Error("El contenido del portapapeles está vacío. Copia los datos desde la página de theHunter y vuelve a intentar.");
-            }
-            
-            statusDiv.innerHTML = "⚙️ Procesando datos...";
-            const resultadoTabulado = procesarTexto(clipboardText);
-            
-            // Copiar al portapapeles automáticamente
-            await navigator.clipboard.writeText(resultadoTabulado);
-            statusDiv.innerHTML = "✅ ¡Completado! El resultado tabulado (con arma y fecha) se ha copiado al portapapeles. Ya puedes pegarlo en Excel.";
-            
-        } catch (error) {
-            console.error(error);
-            statusDiv.innerHTML = `❌ Error: ${error.message}`;
-        }
+            let text = await navigator.clipboard.readText();
+            if (!text.trim()) throw new Error("Portapapeles vacío");
+            const username = extractUsername(text);
+            const results = parseBestScores(text, username);
+            if (!results.length) throw new Error("No se extrajeron datos");
+            const tabText = generateScoresTabText(username, results);
+            const htmlTable = generateScoresHtmlTable(username, results);
+            document.getElementById('scoresTableContainer').innerHTML = htmlTable;
+            document.getElementById('scoresOutput').innerText = tabText;
+            await navigator.clipboard.writeText(tabText);
+            statusDiv.innerHTML = "✅ Completado. Resultado copiado.";
+        } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
-    // Función para copiar manualmente el resultado actual (sin reprocesar)
-    function copiarResultadoManual() {
-        const texto = document.getElementById('outputText').innerText;
-        if (!texto || texto.trim() === "") {
-            alert("No hay resultado para copiar. Primero presiona 'PROCESAR (1 clic)'.");
-            return;
-        }
-        navigator.clipboard.writeText(texto).then(() => {
-            alert("✅ Resultado copiado al portapapeles manualmente.");
-        }).catch(() => alert("Error al copiar."));
+    async function processComps() {
+        const statusDiv = document.getElementById('compsStatus');
+        try {
+            statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
+            let text = await navigator.clipboard.readText();
+            if (!text.trim()) throw new Error("Portapapeles vacío");
+            let comps = parseCompetitions(text);
+            if (!comps.length) throw new Error("No se encontraron competiciones inscritas");
+            comps = sortCompetitions(comps);
+            const tabText = generateCompsTabText(comps);
+            const htmlTable = generateCompsHtmlTable(comps);
+            document.getElementById('compsTableContainer').innerHTML = htmlTable;
+            document.getElementById('compsOutput').innerText = tabText;
+            await navigator.clipboard.writeText(tabText);
+            statusDiv.innerHTML = "✅ Completado. Resultado copiado.";
+        } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
     // Eventos
-    document.getElementById('autoProcessBtn').addEventListener('click', procesarAutomatico);
-    document.getElementById('manualCopyBtn').addEventListener('click', copiarResultadoManual);
+    document.getElementById('processScoresBtn').addEventListener('click', processScores);
+    document.getElementById('processCompsBtn').addEventListener('click', processComps);
+
+    // Pestañas
+    const tabs = document.querySelectorAll('.tab-btn');
+    const panes = document.querySelectorAll('.tab-pane');
+    tabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabId = btn.getAttribute('data-tab');
+            panes.forEach(p => p.classList.remove('active'));
+            tabs.forEach(b => b.classList.remove('active'));
+            document.getElementById(`${tabId}-tab`).classList.add('active');
+            btn.classList.add('active');
+        });
+    });
 </script>
 </body>
 </html>
