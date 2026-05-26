@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias (búsqueda flexible de jugadores)</title>
+    <title>theHunter Data Processor - Competencias (con descripción)</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -229,13 +229,13 @@
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
         let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
-        for (let item of data) html += `<tr><td>${escapeHtml(username)}</td>.html(</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td></tr>`;
+        for (let item of data) html += `<tr><td>${escapeHtml(username)}</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td></tr>`;
         html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS - BÚSQUEDA FLEXIBLE DE LÍNEA DE JUGADORES
+    // 2. COMPETENCIAS - CON DESCRIPCIÓN Y POSICIÓN VACÍA
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -303,7 +303,9 @@
                 continue;
             }
             const intentos = partes[0];
-            const posicion = partes[1];
+            let posicion = partes[1];
+            // Reemplazar "N/A" por vacío
+            if (posicion === "N/A") posicion = "";
             const inicioFecha = partes[2];
             const finalFecha = partes[3];
             const estado = partes[4];
@@ -325,7 +327,7 @@
         return competencias;
     }
     
-    // Extraer listado global: buscar dinámicamente la línea con jugadores
+    // Extraer listado global incluyendo descripción
     function extraerListadoGlobal(texto) {
         const lines = texto.split(/\r?\n/);
         let inicio = -1;
@@ -346,18 +348,24 @@
             if (idx+1 >= lines.length) break;
             const especieRaw = lines[idx+1].trim();
             
-            // Buscar hacia adelante la línea que contiene jugadores y fechas
+            // Capturar descripción (línea siguiente a la especie, pero puede haber requisitos después)
+            let descripcion = "";
             let dataIdx = idx+2;
             let datosLine = null;
             while (dataIdx < lines.length) {
                 const line = lines[dataIdx].trim();
-                // Patrón: número al inicio, luego un mes (enero, febrero...)
+                // Si encontramos la línea con jugadores y fechas, terminamos la búsqueda
                 if (line.match(/^\s*\d+\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/)) {
                     datosLine = line;
                     break;
                 }
+                // Si la línea no está vacía y no comienza con número, es parte de la descripción
+                if (line !== "" && !line.match(/^\d+/)) {
+                    if (descripcion === "") descripcion = line;
+                    else descripcion += " " + line;
+                }
                 dataIdx++;
-                if (dataIdx - idx > 20) break; // seguridad
+                if (dataIdx - idx > 20) break;
             }
             if (!datosLine) {
                 idx++;
@@ -385,7 +393,8 @@
                 jugadores: jugadores,
                 inicioRaw: inicioFecha,
                 finalRaw: finalFecha,
-                modalidad: modalidad
+                modalidad: modalidad,
+                descripcion: descripcion
             });
             idx = dataIdx + 1;
         }
@@ -401,6 +410,7 @@
         for (let r of resumen) {
             const g = mapGlobal.get(r.nombre);
             const jugadores = g ? g.jugadores : 0;
+            const descripcion = g ? g.descripcion : "";
             let modalidad = r.modalidad;
             if (!modalidad && g) modalidad = g.modalidad;
             fusionadas.push({
@@ -411,7 +421,8 @@
                 inicio: convertirFecha(r.inicioRaw),
                 final: convertirFecha(r.finalRaw),
                 jugadores: jugadores,
-                modalidad: modalidad
+                modalidad: modalidad,
+                descripcion: descripcion
             });
         }
         return fusionadas;
@@ -431,14 +442,14 @@
         let lines = [];
         for (let i = 0; i < comps.length; i++) {
             const c = comps[i];
-            lines.push(`${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.modalidad}`);
+            lines.push(`${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.modalidad}\t${c.descripcion}`);
         }
         return lines.join('\n');
     }
     
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
-        let html = `<table><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th><th>Descripción</th></tr></thead><tbody>`;
         for (let i = 0; i < comps.length; i++) {
             const c = comps[i];
             html += `<tr>
@@ -451,6 +462,7 @@
                 <td>${escapeHtml(c.final)}</td>
                 <td>${c.jugadores}</td>
                 <td>${escapeHtml(c.modalidad)}</td>
+                <td>${escapeHtml(c.descripcion)}</td>
             </tr>`;
         }
         html += `</tbody></table>`;
