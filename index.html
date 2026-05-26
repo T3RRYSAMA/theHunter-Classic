@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias (parseo por bloques)</title>
+    <title>theHunter Data Processor - Competencias (con ID y jugadores corregido)</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -151,7 +151,7 @@
 
 <script>
     // --------------------------------------------------------------
-    // 1. MEJORES PUNTUACIONES (código probado, se mantiene)
+    // 1. MEJORES PUNTUACIONES (código probado)
     // --------------------------------------------------------------
     const ESPECIES_OFICIALES = new Set([
         "Alce", "Banteng", "Bisonte", "Búfalo de Agua", "Cabra Salvaje", "Canguro rojo",
@@ -228,15 +228,16 @@
     }
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
-        let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
+        let html = `</td><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
         for (let item of data) html += `<tr><td>${escapeHtml(username)}</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td></tr>`;
         html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS - PARSEO POR BLOQUES DE 3 Y 5 LÍNEAS
+    // 2. COMPETENCIAS - PARSEO CORREGIDO (con ID y jugadores)
     // --------------------------------------------------------------
+    // Convertir fecha sin sumar año (asumir año actual)
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
         const partes = fechaStr.trim().split(' ');
@@ -246,21 +247,11 @@
         const horaMin = partes[2];
         let hora = parseInt(horaMin.split(':')[0]);
         let minuto = parseInt(horaMin.split(':')[1]);
-        let año = new Date().getFullYear();
-        let fechaObj = new Date(año, mes-1, dia, hora, minuto);
-        let hoy = new Date();
-        if (fechaObj < hoy) {
-            fechaObj = new Date(año+1, mes-1, dia, hora, minuto);
-        }
-        let añoFinal = fechaObj.getFullYear();
-        let mesFinal = String(fechaObj.getMonth()+1).padStart(2,'0');
-        let diaFinal = String(fechaObj.getDate()).padStart(2,'0');
-        let horaFinal = String(fechaObj.getHours()).padStart(2,'0');
-        let minFinal = String(fechaObj.getMinutes()).padStart(2,'0');
-        return `${añoFinal}-${mesFinal}-${diaFinal} ${horaFinal}:${minFinal}`;
+        const año = new Date().getFullYear();
+        return `${año}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')} ${String(hora).padStart(2,'0')}:${String(minuto).padStart(2,'0')}`;
     }
 
-    // Limpiar especie: quitar "(Típico)", separar múltiples especies con " + ", extraer modalidad
+    // Limpiar especie y extraer modalidad
     function procesarEspecieYModalidad(especieRaw) {
         let modalidad = "";
         let texto = especieRaw;
@@ -286,7 +277,6 @@
     // Extraer resumen (bloques de 3 líneas)
     function extraerResumen(texto) {
         const lines = texto.split(/\r?\n/);
-        // Encontrar la línea "Enrolled competitions"
         let inicio = -1;
         for (let i = 0; i < lines.length; i++) {
             if (lines[i].includes("Enrolled competitions") && lines[i].includes("(")) {
@@ -295,12 +285,10 @@
             }
         }
         if (inicio === -1) return [];
-        // Saltar hasta después de la cabecera "Nombre de Competición\tIntentos\tPosición\tInicio\tFinal\tEstado\tAcción"
         let idx = inicio + 1;
         while (idx < lines.length && (lines[idx].trim() === "" || lines[idx].includes("Nombre de Competición"))) idx++;
         
         const competencias = [];
-        // Leer en bloques de 3 líneas
         while (idx + 2 < lines.length) {
             const nombre = lines[idx].trim();
             if (nombre === "" || nombre.includes("Competiciones próximas")) break;
@@ -308,7 +296,6 @@
             const datosLine = lines[idx+2].trim();
             if (datosLine === "") break;
             
-            // Dividir la línea de datos (puede tener tabuladores o múltiples espacios)
             let partes;
             if (datosLine.includes('\t')) {
                 partes = datosLine.split('\t');
@@ -324,7 +311,6 @@
             const inicioFecha = partes[2];
             const finalFecha = partes[3];
             const estado = partes[4];
-            // partes[5] sería acción, no la usamos
             
             const { especies, modalidad } = procesarEspecieYModalidad(especieRaw);
             
@@ -343,10 +329,9 @@
         return competencias;
     }
     
-    // Extraer listado global (bloques de 5 líneas)
+    // Extraer listado global (bloques de 5 líneas) - CORREGIDO para capturar jugadores
     function extraerListadoGlobal(texto) {
         const lines = texto.split(/\r?\n/);
-        // Buscar la línea "Nombre de Competición	Jugadores	Inicio	Final	Estado	Acción"
         let inicio = -1;
         for (let i = 0; i < lines.length; i++) {
             if (lines[i].includes("Nombre de Competición") && lines[i].includes("Jugadores")) {
@@ -355,31 +340,43 @@
             }
         }
         if (inicio === -1) return [];
-        // Saltar la cabecera y líneas vacías
         let idx = inicio + 1;
         while (idx < lines.length && lines[idx].trim() === "") idx++;
         
         const competencias = [];
-        // Leer en bloques de 5 líneas
         while (idx + 4 < lines.length) {
             const nombre = lines[idx].trim();
             if (nombre === "" || nombre.includes("RECLUTA") || nombre.includes("DEVELOPED")) break;
             const especieRaw = lines[idx+1].trim();
-            const descripcion = lines[idx+2].trim(); // no la usamos
-            const lineaVacia = lines[idx+3].trim(); // debería estar vacía
+            // Saltar descripción (línea 3) y línea vacía (línea 4)
             const datosLine = lines[idx+4].trim();
             if (datosLine === "") break;
             
-            // Dividir la línea de datos (jugadores, fechas, estado, acción)
-            let partes = datosLine.split(/\s+/);
-            if (partes.length < 6) {
-                idx += 5;
-                continue;
+            // Extraer jugadores: buscar el primer token numérico después de limpiar espacios
+            const tokens = datosLine.trim().split(/\s+/);
+            let jugadores = 0;
+            let inicioFecha = "", finalFecha = "", estado = "";
+            // El primer token debe ser el número de jugadores
+            if (tokens.length >= 1 && /^\d+$/.test(tokens[0])) {
+                jugadores = parseInt(tokens[0]);
+                // Las fechas ocupan 4 tokens cada una: mes día hora ART
+                if (tokens.length >= 9) {
+                    inicioFecha = tokens.slice(1,5).join(" ");
+                    finalFecha = tokens.slice(5,9).join(" ");
+                    estado = tokens[9];
+                }
+            } else {
+                // Fallback: buscar el primer número en la línea
+                const numMatch = datosLine.match(/\d+/);
+                if (numMatch) jugadores = parseInt(numMatch[0]);
+                // Intentar extraer fechas manualmente (menos fiable)
+                const fechaRegex = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}(?:th|st|nd|rd)\s+\d{2}:\d{2}\s+ART/g;
+                const fechas = datosLine.match(fechaRegex);
+                if (fechas && fechas.length >= 2) {
+                    inicioFecha = fechas[0];
+                    finalFecha = fechas[1];
+                }
             }
-            const jugadores = parseInt(partes[0]);
-            const inicioFecha = partes.slice(1,5).join(" ");
-            const finalFecha = partes.slice(5,9).join(" ");
-            const estado = partes[9];
             
             const { especies, modalidad } = procesarEspecieYModalidad(especieRaw);
             
@@ -389,7 +386,6 @@
                 jugadores: jugadores,
                 inicioRaw: inicioFecha,
                 finalRaw: finalFecha,
-                estado: estado,
                 modalidad: modalidad
             });
             idx += 5;
@@ -408,7 +404,6 @@
             const jugadores = g ? g.jugadores : 0;
             let modalidad = r.modalidad;
             if (!modalidad && g) modalidad = g.modalidad;
-            // Usar las fechas del resumen (convertidas)
             fusionadas.push({
                 especies: r.especies,
                 nombre: r.nombre,
@@ -433,15 +428,24 @@
         });
     }
     
+    // Generar texto tabulado con ID incremental
     function generateCompsTabText(comps) {
-        return comps.map(c => `${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.modalidad}`).join('\n');
+        let lines = [];
+        for (let i = 0; i < comps.length; i++) {
+            const c = comps[i];
+            lines.push(`${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.modalidad}`);
+        }
+        return lines.join('\n');
     }
     
+    // Generar tabla HTML con ID
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
-        let html = `<table><thead><tr><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th></tr></thead><tbody>`;
-        for (let c of comps) {
+        let html = `<table><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th></tr></thead><tbody>`;
+        for (let i = 0; i < comps.length; i++) {
+            const c = comps[i];
             html += `<tr>
+                <td>${i+1}</td>
                 <td>${escapeHtml(c.especies)}</td>
                 <td>${escapeHtml(c.nombre)}</td>
                 <td>${escapeHtml(c.intentosRaw)}</td>
@@ -482,19 +486,20 @@
             statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
             let text = await navigator.clipboard.readText();
             if (!text.trim()) throw new Error("Portapapeles vacío");
-            statusDiv.innerHTML = "⚙️ Extrayendo resumen (bloques de 3 líneas)...";
+            statusDiv.innerHTML = "⚙️ Extrayendo resumen...";
             const resumen = extraerResumen(text);
-            if (resumen.length === 0) throw new Error("No se encontró la sección 'Enrolled competitions' con el formato esperado (3 líneas por competición).");
-            statusDiv.innerHTML = "⚙️ Extrayendo listado global (bloques de 5 líneas)...";
-            const listadoGlobal = extraerListadoGlobal(text);
-            const fusionadas = fusionarCompetencias(resumen, listadoGlobal);
+            if (resumen.length === 0) throw new Error("No se encontró la sección 'Enrolled competitions'.");
+            statusDiv.innerHTML = "⚙️ Extrayendo listado global...";
+            const global = extraerListadoGlobal(text);
+            statusDiv.innerHTML = "⚙️ Fusionando y ordenando...";
+            const fusionadas = fusionarCompetencias(resumen, global);
             const ordenadas = ordenarCompetencias(fusionadas);
             const tabText = generateCompsTabText(ordenadas);
             const htmlTable = generateCompsHtmlTable(ordenadas);
             document.getElementById('compsTableContainer').innerHTML = htmlTable;
             document.getElementById('compsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. Se procesaron ${ordenadas.length} competiciones. Resultado copiado.`;
+            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas. Resultado copiado.`;
         } catch(err) {
             statusDiv.innerHTML = `❌ Error: ${err.message}`;
             console.error(err);
