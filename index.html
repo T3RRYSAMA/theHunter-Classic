@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias (corrección final)</title>
+    <title>theHunter Data Processor - Competencias corregido</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -228,14 +228,14 @@
     }
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
-        let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
+        let html = `</td><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
         for (let item of data) html += `<tr><td>${escapeHtml(username)}</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td></tr>`;
         html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS - PARSEADOR CORRECTO
+    // 2. COMPETENCIAS - PARSEADOR CORREGIDO
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -260,130 +260,139 @@
         return `${añoFinal}-${mesFinal}-${diaFinal} ${horaFinal}:${minFinal}`;
     }
 
-    // Extraer resumen (tabla con pestañas)
+    // Extraer resumen usando búsqueda de la sección y luego líneas con múltiples espacios o tabuladores
     function extraerResumen(texto) {
+        // Buscar la línea que contiene "Enrolled competitions"
         const lines = texto.split(/\r?\n/);
-        let encontrado = false;
-        const competencias = [];
+        let inicio = -1;
         for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (line.includes("Enrolled competitions") && line.includes("(")) {
-                encontrado = true;
-                continue;
-            }
-            if (encontrado && line.includes("Competiciones próximas")) break;
-            if (encontrado && line.trim() === "") continue;
-            if (encontrado && (line.includes("Nombre de Competición") || line.includes("Intentos") || line.includes("Posición") || line.includes("Inicio") || line.includes("Final") || line.includes("Estado") || line.includes("Acción"))) {
-                continue;
-            }
-            if (encontrado && line.includes("\t")) {
-                const columnas = line.split(/\t/);
-                if (columnas.length >= 8) {
-                    const nombre = columnas[0].trim();
-                    let especieRaw = columnas[1].trim();
-                    const intentos = columnas[2].trim();
-                    const posicion = columnas[3].trim();
-                    const inicio = columnas[4].trim();
-                    const final = columnas[5].trim();
-                    const estado = columnas[6].trim();
-                    const accion = columnas[7].trim();
-                    
-                    let modalidad = "";
-                    if (especieRaw.includes("Un jugador")) {
-                        modalidad = "Un jugador";
-                        especieRaw = especieRaw.replace("Un jugador", "").trim();
-                    } else if (especieRaw.includes("Multijugador")) {
-                        modalidad = "Multijugador";
-                        especieRaw = especieRaw.replace("Multijugador", "").trim();
-                    }
-                    especieRaw = especieRaw.replace(/\s*\(Típico\)/g, '');
-                    // Extraer especies
-                    const speciesSet = new Set();
-                    for (let sp of ESPECIES_OFICIALES) {
-                        if (especieRaw.includes(sp)) speciesSet.add(sp);
-                    }
-                    let especiesFinal = speciesSet.size > 0 ? Array.from(speciesSet).join(" + ") : especieRaw;
-                    
-                    competencias.push({
-                        nombre: nombre,
-                        especies: especiesFinal,
-                        intentosRaw: intentos,
-                        posicion: posicion,
-                        inicioRaw: inicio,
-                        finalRaw: final,
-                        estado: estado,
-                        modalidad: modalidad
-                    });
-                }
+            if (lines[i].includes("Enrolled competitions") && lines[i].includes("(")) {
+                inicio = i;
+                break;
             }
         }
-        return competencias;
-    }
-    
-    // Extraer listado global (competencias con jugadores)
-    function extraerListadoGlobal(texto) {
-        const lines = texto.split(/\r?\n/);
-        let encontrado = false;
-        let i = 0;
+        if (inicio === -1) return [];
+        // Avanzar hasta la línea después de los encabezados (Nombre de Competición, Intentos, etc.)
+        let idx = inicio + 1;
+        while (idx < lines.length && (lines[idx].trim() === "" || lines[idx].includes("Nombre de Competición"))) idx++;
+        // Ahora recolectar líneas hasta "Competiciones próximas" o "Competiciones anteriores"
         const competencias = [];
-        while (i < lines.length) {
+        for (let i = idx; i < lines.length; i++) {
             const line = lines[i];
-            if (!encontrado && line.includes("Nombre de Competición") && line.includes("Jugadores") && line.includes("Inicio") && line.includes("Final")) {
-                encontrado = true;
-                i++;
-                continue;
+            if (line.includes("Competiciones próximas") || line.includes("Competiciones anteriores")) break;
+            if (line.trim() === "") continue;
+            // Intentar dividir por tabuladores o por 2 o más espacios
+            let columnas;
+            if (line.includes('\t')) {
+                columnas = line.split('\t');
+            } else {
+                // Dividir por 2 o más espacios
+                columnas = line.split(/\s{2,}/);
             }
-            if (encontrado && (line.includes("RECLUTA A UN AMIGO") || line.includes("DEVELOPED BY"))) break;
-            if (encontrado && line.trim() === "") { i++; continue; }
-            if (encontrado) {
-                // Cada competición comienza con el nombre (línea que no comienza con número y no contiene " / ")
-                const nombre = line.trim();
-                if (nombre === "") { i++; continue; }
-                if (/^\d/.test(nombre)) { i++; continue; } // no es nombre
-                if (nombre.includes("/")) { i++; continue; }
-                if (i+1 >= lines.length) break;
-                const especieRaw = lines[i+1].trim();
-                // Saltar las líneas de descripción hasta encontrar una línea que comience con número (jugadores)
-                let j = i+2;
-                while (j < lines.length && !/^\d+/.test(lines[j].trim())) j++;
-                if (j >= lines.length) break;
-                const dataLine = lines[j].trim();
-                const partes = dataLine.split(/\s+/);
-                if (partes.length < 6) { i = j+1; continue; }
-                let jugadores = parseInt(partes[0]);
-                const inicioFecha = partes.slice(1,5).join(" ");
-                const finalFecha = partes.slice(5,9).join(" ");
-                const estado = partes[9];
-                const accion = partes[10];
+            if (columnas.length >= 8) {
+                const nombre = columnas[0].trim();
+                let especieRaw = columnas[1].trim();
+                const intentos = columnas[2].trim();
+                const posicion = columnas[3].trim();
+                const inicioFecha = columnas[4].trim();
+                const finalFecha = columnas[5].trim();
+                const estado = columnas[6].trim();
+                // columna 7 es acción (Desactivar ❚❚)
                 
                 let modalidad = "";
-                let especieLimpia = especieRaw;
-                if (especieLimpia.includes("Un jugador")) {
+                if (especieRaw.includes("Un jugador")) {
                     modalidad = "Un jugador";
-                    especieLimpia = especieLimpia.replace("Un jugador", "").trim();
-                } else if (especieLimpia.includes("Multijugador")) {
+                    especieRaw = especieRaw.replace("Un jugador", "").trim();
+                } else if (especieRaw.includes("Multijugador")) {
                     modalidad = "Multijugador";
-                    especieLimpia = especieLimpia.replace("Multijugador", "").trim();
+                    especieRaw = especieRaw.replace("Multijugador", "").trim();
                 }
-                especieLimpia = especieLimpia.replace(/\s*\(Típico\)/g, '');
+                especieRaw = especieRaw.replace(/\s*\(Típico\)/g, '');
+                
+                // Extraer especies
                 const speciesSet = new Set();
                 for (let sp of ESPECIES_OFICIALES) {
-                    if (especieLimpia.includes(sp)) speciesSet.add(sp);
+                    if (especieRaw.includes(sp)) speciesSet.add(sp);
                 }
-                let especiesFinal = speciesSet.size > 0 ? Array.from(speciesSet).join(" + ") : especieLimpia;
+                let especiesFinal = speciesSet.size > 0 ? Array.from(speciesSet).join(" + ") : especieRaw;
                 
                 competencias.push({
                     nombre: nombre,
                     especies: especiesFinal,
-                    jugadores: jugadores,
+                    intentosRaw: intentos,
+                    posicion: posicion,
                     inicioRaw: inicioFecha,
                     finalRaw: finalFecha,
                     estado: estado,
                     modalidad: modalidad
                 });
-                i = j+1;
+            }
+        }
+        return competencias;
+    }
+    
+    // Extraer listado global (tabla de todas las competiciones)
+    function extraerListadoGlobal(texto) {
+        const lines = texto.split(/\r?\n/);
+        let inicio = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes("Nombre de Competición") && lines[i].includes("Jugadores")) {
+                inicio = i;
+                break;
+            }
+        }
+        if (inicio === -1) return [];
+        let idx = inicio + 1;
+        const competencias = [];
+        while (idx < lines.length) {
+            const line = lines[idx].trim();
+            if (line === "" || line.includes("RECLUTA") || line.includes("DEVELOPED BY")) break;
+            // El nombre de la competición es una línea que no comienza con número
+            if (!/^\d/.test(line) && line !== "") {
+                const nombre = line;
+                if (idx+1 >= lines.length) break;
+                const especieRaw = lines[idx+1].trim();
+                let j = idx+2;
+                // Saltar descripción (pueden ser varias líneas) hasta encontrar una línea que empiece con número (jugadores)
+                while (j < lines.length && !/^\d+/.test(lines[j].trim())) j++;
+                if (j >= lines.length) break;
+                const dataLine = lines[j].trim();
+                const partes = dataLine.split(/\s+/);
+                if (partes.length >= 6) {
+                    let jugadores = parseInt(partes[0]);
+                    const inicioFecha = partes.slice(1,5).join(" ");
+                    const finalFecha = partes.slice(5,9).join(" ");
+                    const estado = partes[9];
+                    
+                    let modalidad = "";
+                    let especieLimpia = especieRaw;
+                    if (especieLimpia.includes("Un jugador")) {
+                        modalidad = "Un jugador";
+                        especieLimpia = especieLimpia.replace("Un jugador", "").trim();
+                    } else if (especieLimpia.includes("Multijugador")) {
+                        modalidad = "Multijugador";
+                        especieLimpia = especieLimpia.replace("Multijugador", "").trim();
+                    }
+                    especieLimpia = especieLimpia.replace(/\s*\(Típico\)/g, '');
+                    const speciesSet = new Set();
+                    for (let sp of ESPECIES_OFICIALES) {
+                        if (especieLimpia.includes(sp)) speciesSet.add(sp);
+                    }
+                    let especiesFinal = speciesSet.size > 0 ? Array.from(speciesSet).join(" + ") : especieLimpia;
+                    
+                    competencias.push({
+                        nombre: nombre,
+                        especies: especiesFinal,
+                        jugadores: jugadores,
+                        inicioRaw: inicioFecha,
+                        finalRaw: finalFecha,
+                        estado: estado,
+                        modalidad: modalidad
+                    });
+                }
+                idx = j + 1;
             } else {
-                i++;
+                idx++;
             }
         }
         return competencias;
@@ -475,7 +484,7 @@
             if (!text.trim()) throw new Error("Portapapeles vacío");
             statusDiv.innerHTML = "⚙️ Extrayendo resumen...";
             const resumen = extraerResumen(text);
-            if (resumen.length === 0) throw new Error("No se encontró la tabla 'Enrolled competitions'");
+            if (resumen.length === 0) throw new Error("No se encontró la tabla 'Enrolled competitions' en el texto copiado. Asegúrate de copiar toda la página.");
             statusDiv.innerHTML = "⚙️ Extrayendo listado global...";
             const listadoGlobal = extraerListadoGlobal(text);
             const fusionadas = fusionarCompetencias(resumen, listadoGlobal);
