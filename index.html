@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias (fusión correcta)</title>
+    <title>theHunter Data Processor - Competencias (versión definitiva)</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -69,7 +69,6 @@
             cursor: pointer;
             margin-right: 1rem;
             margin-bottom: 1rem;
-            transition: 0.2s;
         }
         .result-area {
             background-color: #0a0f1a;
@@ -122,7 +121,7 @@
     <h1>🦌 theHunter Data Processor</h1>
     <div class="tabs">
         <button class="tab-btn active" data-tab="scores">🏆 Mejores Puntuaciones</button>
-        <button class="tab-btn" data-tab="comps">⚔️ Competencias (fusión)</button>
+        <button class="tab-btn" data-tab="comps">⚔️ Competencias</button>
     </div>
 
     <div id="scores-tab" class="tab-pane active">
@@ -152,7 +151,7 @@
 
 <script>
     // --------------------------------------------------------------
-    // 1. MEJORES PUNTUACIONES (código ya funcional, se mantiene)
+    // 1. MEJORES PUNTUACIONES (código probado, se mantiene)
     // --------------------------------------------------------------
     const ESPECIES_OFICIALES = new Set([
         "Alce", "Banteng", "Bisonte", "Búfalo de Agua", "Cabra Salvaje", "Canguro rojo",
@@ -229,17 +228,15 @@
     }
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
-        let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
+        let html = `<tr><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th><tr></thead><tbody>`;
         for (let item of data) html += `<tr><td>${escapeHtml(username)}</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td></tr>`;
         html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS - FUSIÓN DE SECCIONES
+    // 2. COMPETENCIAS - NUEVO PARSEADOR CORREGIDO
     // --------------------------------------------------------------
-    
-    // Convertir fecha de "May 25th 04:00 ART" a "YYYY-MM-DD HH:MM"
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
         const partes = fechaStr.trim().split(' ');
@@ -249,13 +246,11 @@
         const horaMin = partes[2];
         let hora = parseInt(horaMin.split(':')[0]);
         let minuto = parseInt(horaMin.split(':')[1]);
-        // Asumir año actual, pero si la fecha ya pasó, sumar 1 año (para competencias futuras)
         let año = new Date().getFullYear();
         let fechaObj = new Date(año, mes-1, dia, hora, minuto);
         let hoy = new Date();
+        // Si la fecha ya pasó (comparando solo fecha, sin hora), sumamos 1 año
         if (fechaObj < hoy) {
-            // Si la fecha ya pasó, probablemente es del año que viene (para competiciones que empiezan mañana o la semana que viene)
-            // Pero como las competiciones listadas son actuales o futuras, sumamos 1 año solo si es necesario
             fechaObj = new Date(año+1, mes-1, dia, hora, minuto);
         }
         let añoFinal = fechaObj.getFullYear();
@@ -266,120 +261,33 @@
         return `${añoFinal}-${mesFinal}-${diaFinal} ${horaFinal}:${minFinal}`;
     }
 
-    // Extraer lista de competiciones del resumen (Enrolled competitions)
+    // Extraer resumen (Enrolled competitions)
     function extraerResumen(texto) {
-        // Buscar sección "Enrolled competitions"
-        const regexResumen = /Enrolled competitions\s*\([\d]+\)\s*\n(.*?)(?=\nCompeticiones próximas|\nCompeticiones anteriores|\nSaved competitions)/s;
-        const matchResumen = texto.match(regexResumen);
-        if (!matchResumen) return [];
-        let bloque = matchResumen[1];
-        // Dividir en líneas y limpiar
+        // Buscar desde "Enrolled competitions (98)" hasta "Competiciones próximas"
+        const regexInicio = /Enrolled competitions\s*\([\d]+\)/;
+        let inicio = texto.search(regexInicio);
+        if (inicio === -1) return [];
+        let fin = texto.search(/Competiciones próximas/);
+        if (fin === -1) fin = texto.length;
+        let bloque = texto.substring(inicio, fin);
         let lineas = bloque.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
-        // Saltar encabezados de tabla (Nombre de Competición, Intentos, etc.)
+        // Saltar la primera línea (cabecera de la tabla)
         let i = 0;
         while (i < lineas.length && (lineas[i].includes("Nombre de Competición") || lineas[i].includes("Intentos") || lineas[i].includes("Posición") || lineas[i].includes("Inicio") || lineas[i].includes("Final") || lineas[i].includes("Estado") || lineas[i].includes("Acción"))) i++;
         
         const competencias = [];
-        // Cada competencia ocupa 8 líneas consecutivas
         while (i + 7 < lineas.length) {
             const nombre = lineas[i];
-            let especiesRaw = lineas[i+1];
-            const intentosRaw = lineas[i+2];
-            const posicion = lineas[i+3];
-            const inicioRaw = lineas[i+4];
-            const finalRaw = lineas[i+5];
-            const estado = lineas[i+6];
-            // La línea i+7 es la acción (Desactivar ❚❚), no la usamos
-            
-            // Limpiar especies: quitar "(Típico)" y detectar modalidad
-            let modalidad = "";
-            let especiesLimpia = especiesRaw;
-            if (especiesRaw.includes("Un jugador")) {
-                modalidad = "Un jugador";
-                especiesLimpia = especiesRaw.replace("Un jugador", "").trim();
-            } else if (especiesRaw.includes("Multijugador")) {
-                modalidad = "Multijugador";
-                especiesLimpia = especiesRaw.replace("Multijugador", "").trim();
-            }
-            especiesLimpia = especiesLimpia.replace(/\s*\(Típico\)/g, '');
-            // Reemplazar espacios múltiples y unir especies múltiples con " + "
-            let especiesFinal = especiesLimpia;
-            // Si hay varias especies separadas por espacios (pero son nombres compuestos), mejor detectar con lista oficial
-            const speciesSet = new Set();
-            for (let sp of ESPECIES_OFICIALES) {
-                if (especiesLimpia.includes(sp)) {
-                    speciesSet.add(sp);
-                }
-            }
-            if (speciesSet.size > 0) {
-                especiesFinal = Array.from(speciesSet).join(" + ");
-            }
-            
-            // Intentos: mantener el raw
-            // Fechas: convertir
-            const inicioConv = convertirFecha(inicioRaw);
-            const finalConv = convertirFecha(finalRaw);
-            
-            competencias.push({
-                nombre: nombre,
-                especies: especiesFinal,
-                intentosRaw: intentosRaw,
-                posicion: posicion,
-                inicio: inicioConv,
-                final: finalConv,
-                estadoResumen: estado,
-                modalidad: modalidad
-            });
-            i += 8;
-        }
-        return competencias;
-    }
-    
-    // Extraer listado global (todas las competiciones) para obtener número de jugadores y fechas alternativas
-    function extraerListadoGlobal(texto) {
-        // Buscar la tabla global que empieza con "Nombre de Competición	Jugadores	Inicio	Final	Estado	Acción"
-        const regexGlobal = /Nombre de Competición\s+Jugadores\s+Inicio\s+Final\s+Estado\s+Acción\s*\n(.*?)(?=\nRECLUTA|\nDEVELOPED BY|\nFOLLOW|\n$)/s;
-        const matchGlobal = texto.match(regexGlobal);
-        if (!matchGlobal) return [];
-        let bloque = matchGlobal[1];
-        let lineas = bloque.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
-        
-        // Ahora cada competición en el listado global también tiene un patrón: nombre, especie, descripción larga, luego una línea con jugadores, inicio, final, estado, acción
-        // En el texto proporcionado, después de la descripción viene una línea con "33	May 25th 04:00 ART	May 27th 04:00 ART	Iniciado	Enrolled"
-        // Necesitamos agrupar de manera inteligente.
-        const competenciasGlobal = [];
-        let i = 0;
-        while (i < lineas.length) {
-            const nombre = lineas[i];
-            if (!nombre || nombre.includes("Nombre de Competición")) { i++; continue; }
-            if (i+1 >= lineas.length) break;
             const especieRaw = lineas[i+1];
-            // La siguiente línea puede ser la descripción (texto largo) o directamente los datos numéricos
-            let j = i+2;
-            // Buscar la línea que contiene números de jugadores (patrón: ^\d+\s+May...)
-            while (j < lineas.length && !/^\d+\s+May/.test(lineas[j])) j++;
-            if (j >= lineas.length) break;
-            const datosLinea = lineas[j];
-            // Extraer jugadores, inicio, final, estado, acción
-            const partes = datosLinea.split(/\s+/);
-            // Formato típico: "33 May 25th 04:00 ART May 27th 04:00 ART Iniciado Enrolled"
-            let jugadores = 0;
-            let inicioRaw = "", finalRaw = "";
-            let estadoGlobal = "", accion = "";
-            if (partes.length >= 6) {
-                jugadores = parseInt(partes[0]);
-                // Las fechas tienen formato "May 25th 04:00 ART", ocupan 4 tokens (mes, día, hora, ART)
-                inicioRaw = partes.slice(1,5).join(" ");
-                finalRaw = partes.slice(5,9).join(" ");
-                estadoGlobal = partes[9];
-                accion = partes[10];
-            }
-            const inicioConv = convertirFecha(inicioRaw);
-            const finalConv = convertirFecha(finalRaw);
+            const intentos = lineas[i+2];
+            const posicion = lineas[i+3];
+            const inicioFecha = lineas[i+4];
+            const finalFecha = lineas[i+5];
+            const estado = lineas[i+6];
+            const accion = lineas[i+7];
             
             // Limpiar especie
-            let especieLimpia = especieRaw.replace(/\s*\(Típico\)/g, '');
-            // Detectar modalidad
+            let especieLimpia = especieRaw;
             let modalidad = "";
             if (especieLimpia.includes("Un jugador")) {
                 modalidad = "Un jugador";
@@ -388,57 +296,127 @@
                 modalidad = "Multijugador";
                 especieLimpia = especieLimpia.replace("Multijugador", "").trim();
             }
-            // Múltiples especies
-            const speciesSet = new Set();
+            especieLimpia = especieLimpia.replace(/\s*\(Típico\)/g, '');
+            // Unir múltiples especies con " + "
+            const especiesSet = new Set();
             for (let sp of ESPECIES_OFICIALES) {
-                if (especieLimpia.includes(sp)) speciesSet.add(sp);
+                if (especieLimpia.includes(sp)) especiesSet.add(sp);
             }
-            let especiesFinal = speciesSet.size > 0 ? Array.from(speciesSet).join(" + ") : especieLimpia;
+            let especiesFinal = especiesSet.size > 0 ? Array.from(especiesSet).join(" + ") : especieLimpia;
             
-            competenciasGlobal.push({
+            competencias.push({
+                nombre: nombre,
+                especies: especiesFinal,
+                intentosRaw: intentos,
+                posicion: posicion,
+                inicioRaw: inicioFecha,
+                finalRaw: finalFecha,
+                estado: estado,
+                modalidad: modalidad
+            });
+            i += 8;
+        }
+        return competencias;
+    }
+    
+    // Extraer listado global (competiciones con jugadores)
+    function extraerListadoGlobal(texto) {
+        // Buscar la línea "Nombre de Competición	Jugadores	Inicio	Final	Estado	Acción"
+        const regexCabecera = /Nombre de Competición\s+Jugadores\s+Inicio\s+Final\s+Estado\s+Acción/;
+        let inicio = texto.search(regexCabecera);
+        if (inicio === -1) return [];
+        let fin = texto.search(/RECLUTA A UN AMIGO/);
+        if (fin === -1) fin = texto.length;
+        let bloque = texto.substring(inicio, fin);
+        let lineas = bloque.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
+        // Saltar la cabecera
+        let i = 0;
+        while (i < lineas.length && lineas[i].includes("Nombre de Competición")) i++;
+        
+        const competencias = [];
+        while (i < lineas.length) {
+            const nombre = lineas[i];
+            if (!nombre || nombre.length < 2) { i++; continue; }
+            if (i+1 >= lineas.length) break;
+            const especieRaw = lineas[i+1];
+            // Buscar la línea que contiene el número de jugadores (debe empezar con dígitos)
+            let j = i+2;
+            while (j < lineas.length && !/^\d+/.test(lineas[j])) j++;
+            if (j >= lineas.length) break;
+            const dataLine = lineas[j];
+            // Formato: "9 May 27th 04:00 ART May 29th 04:00 ART Signup Enrolled"
+            const partes = dataLine.split(/\s+/);
+            if (partes.length < 6) { i = j+1; continue; }
+            let jugadores = parseInt(partes[0]);
+            // Las fechas ocupan 4 tokens cada una (mes, día, hora, ART)
+            const inicioFecha = partes.slice(1,5).join(" ");
+            const finalFecha = partes.slice(5,9).join(" ");
+            const estado = partes[9];
+            const accion = partes[10];
+            
+            // Limpiar especie y modalidad
+            let especieLimpia = especieRaw;
+            let modalidad = "";
+            if (especieLimpia.includes("Un jugador")) {
+                modalidad = "Un jugador";
+                especieLimpia = especieLimpia.replace("Un jugador", "").trim();
+            } else if (especieLimpia.includes("Multijugador")) {
+                modalidad = "Multijugador";
+                especieLimpia = especieLimpia.replace("Multijugador", "").trim();
+            }
+            especieLimpia = especieLimpia.replace(/\s*\(Típico\)/g, '');
+            const especiesSet = new Set();
+            for (let sp of ESPECIES_OFICIALES) {
+                if (especieLimpia.includes(sp)) especiesSet.add(sp);
+            }
+            let especiesFinal = especiesSet.size > 0 ? Array.from(especiesSet).join(" + ") : especieLimpia;
+            
+            competencias.push({
                 nombre: nombre,
                 especies: especiesFinal,
                 jugadores: jugadores,
-                inicio: inicioConv,
-                final: finalConv,
-                estadoGlobal: estadoGlobal,
+                inicioRaw: inicioFecha,
+                finalRaw: finalFecha,
+                estado: estado,
                 modalidad: modalidad
             });
-            i = j+1;
+            i = j + 1;
         }
-        return competenciasGlobal;
+        return competencias;
     }
     
     // Fusionar: usar resumen como base, agregar jugadores desde global
     function fusionarCompetencias(resumen, global) {
-        const mapaGlobal = new Map();
+        const mapGlobal = new Map();
         for (let g of global) {
-            mapaGlobal.set(g.nombre, g);
+            mapGlobal.set(g.nombre, g);
         }
         const fusionadas = [];
         for (let r of resumen) {
-            const globalMatch = mapaGlobal.get(r.nombre);
-            const jugadores = globalMatch ? globalMatch.jugadores : 0;
-            // Usar las fechas del resumen (que son las mismas que las globales, pero ya convertidas)
+            const g = mapGlobal.get(r.nombre);
+            const jugadores = g ? g.jugadores : 0;
+            // Usar las especies del resumen (ya limpias) o del global si no hay
+            let especies = r.especies;
+            if (!especies || especies === "") especies = g ? g.especies : "";
+            let modalidad = r.modalidad;
+            if (!modalidad && g) modalidad = g.modalidad;
             fusionadas.push({
-                especies: r.especies,
+                especies: especies,
                 nombre: r.nombre,
                 intentosRaw: r.intentosRaw,
                 posicion: r.posicion,
-                inicio: r.inicio,
-                final: r.final,
+                inicio: convertirFecha(r.inicioRaw),
+                final: convertirFecha(r.finalRaw),
                 jugadores: jugadores,
-                modalidad: r.modalidad || (globalMatch ? globalMatch.modalidad : "")
+                modalidad: modalidad
             });
         }
         return fusionadas;
     }
     
     function ordenarCompetencias(lista) {
-        // Ordenar por fecha final (más próxima), luego intentos restantes (menor número), luego menos jugadores
         return lista.sort((a,b) => {
             if (a.final !== b.final) return a.final.localeCompare(b.final);
-            // Extraer intentos restantes: primer número del raw
             const aRest = parseInt(a.intentosRaw.split('/')[0].trim());
             const bRest = parseInt(b.intentosRaw.split('/')[0].trim());
             if (aRest !== bRest) return aRest - bRest;
@@ -452,7 +430,7 @@
     
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
-        let html = `<table><thead><tr><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th></tr></thead><tbody>`;
+        let html = `<td><thead><tr><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th></tr></thead><tbody>`;
         for (let c of comps) {
             html += `<tr>
                 <td>${escapeHtml(c.especies)}</td>
@@ -471,30 +449,7 @@
     
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;'); }
     
-    // Procesador de competencias con fusión
-    async function processComps() {
-        const statusDiv = document.getElementById('compsStatus');
-        try {
-            statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
-            let text = await navigator.clipboard.readText();
-            if (!text.trim()) throw new Error("Portapapeles vacío");
-            statusDiv.innerHTML = "⚙️ Extrayendo resumen y listado global...";
-            const resumen = extraerResumen(text);
-            const listadoGlobal = extraerListadoGlobal(text);
-            if (resumen.length === 0) throw new Error("No se encontró la sección 'Enrolled competitions'");
-            const fusionadas = fusionarCompetencias(resumen, listadoGlobal);
-            const ordenadas = ordenarCompetencias(fusionadas);
-            const tabText = generateCompsTabText(ordenadas);
-            const htmlTable = generateCompsHtmlTable(ordenadas);
-            document.getElementById('compsTableContainer').innerHTML = htmlTable;
-            document.getElementById('compsOutput').innerText = tabText;
-            await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = "✅ Completado. Resultado fusionado copiado al portapapeles.";
-        } catch(err) {
-            statusDiv.innerHTML = `❌ Error: ${err.message}`;
-        }
-    }
-    
+    // Procesadores con lectura de portapapeles
     async function processScores() {
         const statusDiv = document.getElementById('scoresStatus');
         try {
@@ -511,6 +466,31 @@
             await navigator.clipboard.writeText(tabText);
             statusDiv.innerHTML = "✅ Completado. Resultado copiado.";
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
+    }
+    
+    async function processComps() {
+        const statusDiv = document.getElementById('compsStatus');
+        try {
+            statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
+            let text = await navigator.clipboard.readText();
+            if (!text.trim()) throw new Error("Portapapeles vacío");
+            statusDiv.innerHTML = "⚙️ Extrayendo resumen...";
+            const resumen = extraerResumen(text);
+            if (resumen.length === 0) throw new Error("No se encontró la sección 'Enrolled competitions'");
+            statusDiv.innerHTML = "⚙️ Extrayendo listado global...";
+            const listadoGlobal = extraerListadoGlobal(text);
+            const fusionadas = fusionarCompetencias(resumen, listadoGlobal);
+            const ordenadas = ordenarCompetencias(fusionadas);
+            const tabText = generateCompsTabText(ordenadas);
+            const htmlTable = generateCompsHtmlTable(ordenadas);
+            document.getElementById('compsTableContainer').innerHTML = htmlTable;
+            document.getElementById('compsOutput').innerText = tabText;
+            await navigator.clipboard.writeText(tabText);
+            statusDiv.innerHTML = "✅ Completado. Resultado copiado al portapapeles.";
+        } catch(err) {
+            statusDiv.innerHTML = `❌ Error: ${err.message}`;
+            console.error(err);
+        }
     }
     
     document.getElementById('processScoresBtn').addEventListener('click', processScores);
