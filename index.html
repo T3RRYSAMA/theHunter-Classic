@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias (con ID y jugadores corregido)</title>
+    <title>theHunter Data Processor - Competencias (jugadores corregido)</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -235,9 +235,8 @@
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS - PARSEO CORREGIDO (con ID y jugadores)
+    // 2. COMPETENCIAS - VERSIÓN CORREGIDA (extrae jugadores correctamente)
     // --------------------------------------------------------------
-    // Convertir fecha sin sumar año (asumir año actual)
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
         const partes = fechaStr.trim().split(' ');
@@ -251,7 +250,6 @@
         return `${año}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')} ${String(hora).padStart(2,'0')}:${String(minuto).padStart(2,'0')}`;
     }
 
-    // Limpiar especie y extraer modalidad
     function procesarEspecieYModalidad(especieRaw) {
         let modalidad = "";
         let texto = especieRaw;
@@ -263,7 +261,6 @@
             texto = texto.replace("Multijugador", "").trim();
         }
         texto = texto.replace(/\s*\(Típico\)/g, '');
-        // Extraer especies conocidas
         const speciesSet = new Set();
         for (let sp of ESPECIES_OFICIALES) {
             if (texto.includes(sp)) {
@@ -274,7 +271,6 @@
         return { especies: especiesFinal, modalidad: modalidad };
     }
 
-    // Extraer resumen (bloques de 3 líneas)
     function extraerResumen(texto) {
         const lines = texto.split(/\r?\n/);
         let inicio = -1;
@@ -329,7 +325,7 @@
         return competencias;
     }
     
-    // Extraer listado global (bloques de 5 líneas) - CORREGIDO para capturar jugadores
+    // Extraer listado global con regex robustos para jugadores y fechas
     function extraerListadoGlobal(texto) {
         const lines = texto.split(/\r?\n/);
         let inicio = -1;
@@ -348,34 +344,21 @@
             const nombre = lines[idx].trim();
             if (nombre === "" || nombre.includes("RECLUTA") || nombre.includes("DEVELOPED")) break;
             const especieRaw = lines[idx+1].trim();
-            // Saltar descripción (línea 3) y línea vacía (línea 4)
+            // La línea de datos está en idx+4 (quinta línea del bloque)
             const datosLine = lines[idx+4].trim();
             if (datosLine === "") break;
             
-            // Extraer jugadores: buscar el primer token numérico después de limpiar espacios
-            const tokens = datosLine.trim().split(/\s+/);
-            let jugadores = 0;
-            let inicioFecha = "", finalFecha = "", estado = "";
-            // El primer token debe ser el número de jugadores
-            if (tokens.length >= 1 && /^\d+$/.test(tokens[0])) {
-                jugadores = parseInt(tokens[0]);
-                // Las fechas ocupan 4 tokens cada una: mes día hora ART
-                if (tokens.length >= 9) {
-                    inicioFecha = tokens.slice(1,5).join(" ");
-                    finalFecha = tokens.slice(5,9).join(" ");
-                    estado = tokens[9];
-                }
-            } else {
-                // Fallback: buscar el primer número en la línea
-                const numMatch = datosLine.match(/\d+/);
-                if (numMatch) jugadores = parseInt(numMatch[0]);
-                // Intentar extraer fechas manualmente (menos fiable)
-                const fechaRegex = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}(?:th|st|nd|rd)\s+\d{2}:\d{2}\s+ART/g;
-                const fechas = datosLine.match(fechaRegex);
-                if (fechas && fechas.length >= 2) {
-                    inicioFecha = fechas[0];
-                    finalFecha = fechas[1];
-                }
+            // Extraer número de jugadores (primer número al inicio de la línea, incluso con tabs o espacios)
+            const jugadoresMatch = datosLine.match(/^\s*(\d+)/);
+            let jugadores = jugadoresMatch ? parseInt(jugadoresMatch[1]) : 0;
+            
+            // Extraer las dos fechas con patrón "May 26th 04:00 ART"
+            const fechaRegex = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}(?:th|st|nd|rd)\s+\d{2}:\d{2}\s+ART/g;
+            const fechas = datosLine.match(fechaRegex);
+            let inicioFecha = "", finalFecha = "";
+            if (fechas && fechas.length >= 2) {
+                inicioFecha = fechas[0];
+                finalFecha = fechas[1];
             }
             
             const { especies, modalidad } = procesarEspecieYModalidad(especieRaw);
@@ -428,7 +411,6 @@
         });
     }
     
-    // Generar texto tabulado con ID incremental
     function generateCompsTabText(comps) {
         let lines = [];
         for (let i = 0; i < comps.length; i++) {
@@ -438,7 +420,6 @@
         return lines.join('\n');
     }
     
-    // Generar tabla HTML con ID
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
         let html = `<table><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th></tr></thead><tbody>`;
