@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Mejores Puntuaciones y Competencias (v2)</title>
+    <title>theHunter Data Processor - Competencias corregido</title>
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #1e2a2e;
@@ -23,12 +21,7 @@
             padding: 1.5rem;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
-        h1 {
-            color: #fbbf24;
-            font-size: 1.8rem;
-            margin-top: 0;
-            margin-bottom: 0.5rem;
-        }
+        h1 { color: #fbbf24; font-size: 1.8rem; margin-top: 0; margin-bottom: 0.5rem; }
         .tabs {
             display: flex;
             gap: 0.5rem;
@@ -54,12 +47,8 @@
             background-color: #1e3a3a;
             color: #cbd5e1;
         }
-        .tab-pane {
-            display: none;
-        }
-        .tab-pane.active {
-            display: block;
-        }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
         textarea {
             width: 100%;
             height: 200px;
@@ -113,12 +102,8 @@
             background-color: #2c4c40;
             color: #fbbf24;
             cursor: pointer;
-            user-select: none;
             position: sticky;
             top: 0;
-        }
-        th:hover {
-            background-color: #3e6b5c;
         }
         .output-text {
             background-color: #0f172a;
@@ -131,10 +116,7 @@
             max-height: 300px;
             overflow: auto;
         }
-        hr {
-            border-color: #2d3a4f;
-            margin: 1rem 0;
-        }
+        hr { border-color: #2d3a4f; margin: 1rem 0; }
         .status {
             background-color: #1e2a3a;
             border-left: 4px solid #fbbf24;
@@ -143,10 +125,6 @@
             border-radius: 8px;
             font-size: 0.9rem;
         }
-        .sort-indicator {
-            font-size: 0.7rem;
-            margin-left: 5px;
-        }
     </style>
 </head>
 <body>
@@ -154,35 +132,29 @@
     <h1>🦌 theHunter Data Processor</h1>
     <div class="tabs">
         <button class="tab-btn active" data-tab="scores">🏆 Mejores Puntuaciones</button>
-        <button class="tab-btn" data-tab="comps">⚔️ Competencias</button>
+        <button class="tab-btn" data-tab="comps">⚔️ Competencias (corregido)</button>
     </div>
 
-    <!-- Pestaña Mejores Puntuaciones (código probado) -->
     <div id="scores-tab" class="tab-pane active">
         <p>Pega el contenido de la página <strong>"Mejores puntuaciones personales"</strong>.</p>
-        <textarea id="scoresInput" placeholder="Pega aquí el contenido copiado..."></textarea>
-        <button id="processScoresBtn">🚀 PROCESAR (leer portapapeles)</button>
+        <textarea id="scoresInput" placeholder="Pega aquí..."></textarea>
+        <button id="processScoresBtn">🚀 PROCESAR</button>
         <div class="status" id="scoresStatus">✅ Listo.</div>
         <div class="result-area">
-            <div class="result-header">📊 Tabla de Mejores Puntuaciones</div>
             <div id="scoresTableContainer">👉 Presiona "PROCESAR"</div>
             <hr>
-            <div class="result-header">📄 Texto tabulado (copiable para Excel)</div>
             <div id="scoresOutput" class="output-text"></div>
         </div>
     </div>
 
-    <!-- Pestaña Competencias (corregida) -->
     <div id="comps-tab" class="tab-pane">
-        <p>Pega el contenido de la página <strong>"Competencias"</strong> (selecciona todo desde la página de competiciones). Se extraen las competiciones inscritas y se ordenan por: fecha final más próxima → menos intentos restantes → menos jugadores.</p>
-        <textarea id="compsInput" placeholder="Pega aquí el contenido copiado..."></textarea>
-        <button id="processCompsBtn">🚀 PROCESAR (leer portapapeles)</button>
+        <p>Pega el contenido de la página <strong>"Competencias"</strong> (selecciona todo desde la página).</p>
+        <textarea id="compsInput" placeholder="Pega aquí..."></textarea>
+        <button id="processCompsBtn">🚀 PROCESAR</button>
         <div class="status" id="compsStatus">✅ Listo.</div>
         <div class="result-area">
-            <div class="result-header">📊 Tabla de Competencias (ordenada por urgencia)</div>
             <div id="compsTableContainer">👉 Presiona "PROCESAR"</div>
             <hr>
-            <div class="result-header">📄 Texto tabulado (copiable para Excel)</div>
             <div id="compsOutput" class="output-text"></div>
         </div>
     </div>
@@ -190,7 +162,7 @@
 
 <script>
     // --------------------------------------------------------------
-    // 1. MEJORES PUNTUACIONES (código ya probado, sin cambios)
+    // 1. MEJORES PUNTUACIONES (código ya funcional, se mantiene)
     // --------------------------------------------------------------
     const ESPECIES_OFICIALES = new Set([
         "Alce", "Banteng", "Bisonte", "Búfalo de Agua", "Cabra Salvaje", "Canguro rojo",
@@ -206,12 +178,8 @@
         "Ánade Real", "Ánade Sombrío Americano", "Íbice Alpino"
     ]);
 
-    function normalizarNombre(rawLine) {
-        return rawLine.replace(/\s*\([^)]*\)/g, '').trim();
-    }
-    function esEspecieValida(line) {
-        return ESPECIES_OFICIALES.has(normalizarNombre(line));
-    }
+    function normalizarNombre(raw) { return raw.replace(/\s*\([^)]*\)/g, '').trim(); }
+    function esEspecieValida(line) { return ESPECIES_OFICIALES.has(normalizarNombre(line)); }
     function extractUsername(text) {
         const lines = text.split(/\r?\n/);
         for (let i = 0; i < lines.length - 1; i++) {
@@ -224,9 +192,7 @@
     }
     function limpiarFecha(fechaRaw) {
         let fecha = fechaRaw.replace(/\s*ART\s*/i, '').trim();
-        fecha = fecha.replace(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})/, (match, date, hour, minute) => {
-            return `${date} ${hour.padStart(2, '0')}:${minute}`;
-        });
+        fecha = fecha.replace(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})/, (match, date, hour, minute) => `${date} ${hour.padStart(2,'0')}:${minute}`);
         return fecha;
     }
     function parseBestScores(text, username) {
@@ -273,41 +239,54 @@
     }
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
-        let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
+        let html = `<tr><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
         for (let item of data) html += `<tr><td>${escapeHtml(username)}</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td></tr>`;
         html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS (CORREGIDO: intentos restantes = primer número)
+    // 2. COMPETENCIAS - NUEVO PARSEADOR ROBUSTO
     // --------------------------------------------------------------
-    function cleanSpeciesNameForComp(name) {
-        return name.replace(/\s*\(Típico\)/g, '').trim();
-    }
-
     function parseCompetitions(text) {
-        const lines = text.split(/\r?\n/);
+        // Extraer la sección desde "Enrolled competitions" hasta "Competiciones próximas" o "Competiciones anteriores"
+        const enrolledMatch = text.match(/Enrolled competitions\s*\([\d]+\)(.*?)(?=Competiciones próximas|Competiciones anteriores|$)/s);
+        if (!enrolledMatch) return [];
+        let section = enrolledMatch[1];
+        
+        // Dividir en líneas
+        const lines = section.split(/\r?\n/);
+        // Filtrar líneas vacías y las que contienen encabezados de tabla
+        const cleanLines = [];
+        for (let line of lines) {
+            let trimmed = line.trim();
+            if (trimmed === "") continue;
+            if (trimmed.includes("Nombre de Competición") || trimmed.includes("Intentos") || trimmed.includes("Posición") || trimmed.includes("Inicio") || trimmed.includes("Final") || trimmed.includes("Estado") || trimmed.includes("Acción")) continue;
+            cleanLines.push(trimmed);
+        }
+        
+        // Ahora cada competición ocupa un bloque de 8 líneas (nombre, especie, intentos, posición, inicio, final, estado, acción)
+        // Pero a veces puede haber líneas adicionales con el número de jugadores o con "Un jugador" pegado a las especies.
+        // Vamos a agrupar dinámicamente: cada bloque termina cuando encontramos una línea que parece un nombre de competición (no contiene "/", no es "N/A", no es una fecha)
         const competitions = [];
         let i = 0;
-        // Buscar inicio de "Enrolled competitions"
-        while (i < lines.length && !lines[i].trim().startsWith("Enrolled competitions")) i++;
-        if (i >= lines.length) return [];
-        // Saltar encabezados de tabla (Nombre, Intentos, Posición, Inicio, Final, Estado, Acción)
-        i++; // saltar línea "Enrolled competitions (XX)"
-        while (i < lines.length && (lines[i].trim() === "" || lines[i].includes("Nombre de Competición") || lines[i].includes("Intentos"))) i++;
-        // Ahora i apunta a la primera línea de nombre de competición
-        while (i < lines.length) {
-            const nombre = lines[i].trim();
-            if (nombre === "" || nombre.startsWith("Competiciones próximas") || nombre.startsWith("Competiciones anteriores") || nombre.startsWith("Saved competitions")) break;
-            if (i+7 >= lines.length) break;
-            const especiesRaw = lines[i+1].trim();
-            const intentosRaw = lines[i+2].trim();
-            const posicion = lines[i+3].trim();
-            const inicio = lines[i+4].trim();
-            const final = lines[i+5].trim();
-            const estado = lines[i+6].trim();
-            // La línea i+7 es "Desactivar ❚❚" o similar, no la usamos
+        while (i < cleanLines.length) {
+            // El nombre de la competición es una línea que no contiene " / " (porque los intentos sí lo tienen)
+            // y no comienza con "N/A" ni con un mes (enero, febrero...)
+            let nombre = cleanLines[i];
+            if (nombre.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i) || nombre === "N/A" || nombre.includes("/")) {
+                i++;
+                continue;
+            }
+            if (i+7 >= cleanLines.length) break;
+            
+            const especiesRaw = cleanLines[i+1];
+            const intentosRaw = cleanLines[i+2];
+            const posicion = cleanLines[i+3];
+            const inicio = cleanLines[i+4];
+            const final = cleanLines[i+5];
+            const estado = cleanLines[i+6];
+            const accion = cleanLines[i+7];
             
             // Extraer modalidad y limpiar especies
             let modalidad = "";
@@ -319,11 +298,12 @@
                 modalidad = "Multijugador";
                 especiesLimpia = especiesRaw.replace("Multijugador", "").trim();
             }
-            
-            // Reemplazar " (Típico)" en cada especie
+            // Quitar "(Típico)"
             especiesLimpia = especiesLimpia.replace(/\s*\(Típico\)/g, '');
-            // Separar especies múltiples. Podría contener varios nombres separados por espacios, pero como tienen espacios internos, usamos detección por lista de especies.
+            // Separar múltiples especies usando la lista oficial
             const speciesSet = new Set();
+            // Primero intentar dividir por espacios y buscar en la lista, pero cuidado con nombres compuestos
+            // Mejor buscar todas las especies oficiales que estén contenidas en la cadena
             for (let sp of ESPECIES_OFICIALES) {
                 if (especiesLimpia.includes(sp)) {
                     speciesSet.add(sp);
@@ -332,24 +312,22 @@
             let especiesFinal = Array.from(speciesSet).join(" + ");
             if (especiesFinal === "") especiesFinal = especiesLimpia;
             
-            // Intentos: el primer número son los restantes
+            // Intentos restantes es el primer número
             const intentosMatch = intentosRaw.match(/(\d+)\s*\/\s*(\d+)/);
-            let intentosRestantes = 0;
-            let intentosTotal = 0;
+            let intentosRestantes = 0, intentosTotal = 0;
             if (intentosMatch) {
-                intentosRestantes = parseInt(intentosMatch[1]);  // CORRECCIÓN: primer número es restantes
+                intentosRestantes = parseInt(intentosMatch[1]);
                 intentosTotal = parseInt(intentosMatch[2]);
             }
             
-            // Número de jugadores: en el texto proporcionado por el usuario, la columna "Jugadores" no aparecía en la sección inscrita.
-            // Para que funcione, dejamos un valor por defecto 0. El usuario podrá añadirlo manualmente si su copia incluye esa columna.
+            // Buscar número de jugadores: puede estar en la línea i+8 o i+9
             let jugadores = 0;
-            // Buscar en líneas cercanas algún número que pueda ser jugadores (si aparece una línea con solo número)
-            for (let k = i+8; k < Math.min(i+12, lines.length); k++) {
-                const possible = lines[k].trim();
+            if (i+8 < cleanLines.length) {
+                const possible = cleanLines[i+8];
                 if (/^\d+$/.test(possible)) {
                     jugadores = parseInt(possible);
-                    break;
+                } else if (i+9 < cleanLines.length && /^\d+$/.test(cleanLines[i+9])) {
+                    jugadores = parseInt(cleanLines[i+9]);
                 }
             }
             
@@ -366,9 +344,9 @@
                 modalidad: modalidad,
                 jugadores: jugadores
             });
-            i += 8; // pasar al siguiente bloque
-            // Saltar líneas vacías que pudieran quedar
-            while (i < lines.length && lines[i].trim() === "") i++;
+            i += 8;
+            // Saltar posibles líneas de jugadores ya consumidas
+            if (i < cleanLines.length && /^\d+$/.test(cleanLines[i])) i++;
         }
         return competitions;
     }
@@ -388,13 +366,10 @@
             return dateObj;
         }
         return comps.sort((a,b) => {
-            // 1. Fecha final más próxima
             const dateA = parseDate(a.final);
             const dateB = parseDate(b.final);
             if (dateA - dateB !== 0) return dateA - dateB;
-            // 2. Intentos restantes (menor primero)
             if (a.intentosRestantes !== b.intentosRestantes) return a.intentosRestantes - b.intentosRestantes;
-            // 3. Jugadores (menor primero)
             return a.jugadores - b.jugadores;
         });
     }
@@ -422,9 +397,9 @@
         return html;
     }
 
-    function escapeHtml(str) { return String(str).replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+    function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;'); }
 
-    // Procesadores con lectura de portapapeles
+    // Procesadores
     async function processScores() {
         const statusDiv = document.getElementById('scoresStatus');
         try {
@@ -461,7 +436,6 @@
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
-    // Eventos
     document.getElementById('processScoresBtn').addEventListener('click', processScores);
     document.getElementById('processCompsBtn').addEventListener('click', processComps);
 
