@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Niveles con decimales</title>
+    <title>theHunter Data Processor - Niveles con formato concatenado</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -153,7 +153,7 @@
         </div>
     </div>
 
-    <!-- Pestaña Habilidades Animales (con decimales) -->
+    <!-- Pestaña Habilidades Animales (concatenado) -->
     <div id="animalskills-tab" class="tab-pane">
         <p>Copia el <strong>código HTML del frame</strong> de habilidades de especies (inspecciona la página, busca <code>.skills-content</code>).</p>
         <textarea id="animalskillsInput" placeholder="Pega aquí el HTML..."></textarea>
@@ -166,7 +166,7 @@
         </div>
     </div>
 
-    <!-- Pestaña Habilidades Armas (con decimales) -->
+    <!-- Pestaña Habilidades Armas (concatenado) -->
     <div id="weaponskills-tab" class="tab-pane">
         <p>Copia el <strong>código HTML del frame</strong> de habilidades de armas (inspecciona la página, busca <code>.skills-content</code> en la pestaña Armas).</p>
         <textarea id="weaponskillsInput" placeholder="Pega aquí el HTML..."></textarea>
@@ -416,13 +416,19 @@
             const c = comps[i];
             html += `<tr><td>${i+1}</td><td>${escapeHtml(c.especies)}</td><td>${escapeHtml(c.nombre)}</td><td>${escapeHtml(c.intentosRaw)}</td><td>${escapeHtml(c.posicion)}</td><td>${escapeHtml(c.inicio)}</td><td>${escapeHtml(c.final)}</td><td>${c.jugadores}</td><td>${escapeHtml(c.modalidad)}</td></tr>`;
         }
-        html += `</tbody></tr>`;
+        html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 3. HABILIDADES ANIMALES (con decimales)
+    // 3. HABILIDADES ANIMALES (concatenado: nivel,progreso con dos dígitos)
     // --------------------------------------------------------------
+    function formatLevelWithProgress(level, progress) {
+        // progress debe ser entero 0-100, lo formateamos a dos dígitos (00-99, 100% -> 00)
+        let twoDigit = (progress % 100).toString().padStart(2, '0');
+        return `${level},${twoDigit}`;
+    }
+
     function parseAnimalSkillsFromHtml(htmlText) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, 'text/html');
@@ -452,12 +458,8 @@
                 }
             }
             if (tracking && spotting) {
-                // Calcular valor decimal: nivel + progreso/100
-                const trackingDecimal = tracking.nivel + tracking.progreso / 100;
-                const spottingDecimal = spotting.nivel + spotting.progreso / 100;
-                // Formatear con dos decimales (coma decimal)
-                const trackingStr = trackingDecimal.toFixed(2).replace('.', ',');
-                const spottingStr = spottingDecimal.toFixed(2).replace('.', ',');
+                const trackingStr = formatLevelWithProgress(tracking.nivel, tracking.progreso);
+                const spottingStr = formatLevelWithProgress(spotting.nivel, spotting.progreso);
                 datos.push({
                     animal: animal,
                     tracking: trackingStr,
@@ -475,7 +477,7 @@
 
     function generateAnimalSkillsHtmlTable(datos) {
         if (!datos.length) return '<p>No se encontraron datos.</p>';
-        let html = `</td><thead><tr><th>Animal</th><th>Seguimiento (nivel+progreso)</th><th>Marcado (nivel+progreso)</th></tr></thead><tbody>`;
+        let html = `<table><thead></tr><th>Animal</th><th>Seguimiento (nivel,progreso)</th><th>Marcado (nivel,progreso)</th></tr></thead><tbody>`;
         for (let d of datos) {
             html += `<tr><td>${escapeHtml(d.animal)}</td><td>${escapeHtml(d.tracking)}</td><td>${escapeHtml(d.spotting)}</td></tr>`;
         }
@@ -484,7 +486,7 @@
     }
 
     // --------------------------------------------------------------
-    // 4. HABILIDADES ARMAS (con decimales)
+    // 4. HABILIDADES ARMAS (concatenado: nivel,progreso)
     // --------------------------------------------------------------
     function parseWeaponSkillsFromHtml(htmlText) {
         const parser = new DOMParser();
@@ -506,8 +508,7 @@
             const nivel = parseInt(levelSpan.textContent.trim());
             let progreso = progressDiv.textContent.trim().replace('%', '');
             const progresoNum = parseInt(progreso);
-            const nivelDecimal = nivel + progresoNum / 100;
-            const nivelStr = nivelDecimal.toFixed(2).replace('.', ',');
+            const nivelStr = formatLevelWithProgress(nivel, progresoNum);
             datos.push({
                 arma: fullName,
                 nivelDecimal: nivelStr
@@ -523,7 +524,7 @@
 
     function generateWeaponSkillsHtmlTable(datos) {
         if (!datos.length) return '<p>No se encontraron datos de armas.</p>';
-        let html = `</table><thead><tr><th>Arma</th><th>Nivel (decimal)</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th>Arma</th><th>Nivel (nivel,progreso)</th></tr></thead><tbody>`;
         for (let d of datos) {
             html += `<tr><td>${escapeHtml(d.arma)}</td><td>${escapeHtml(d.nivelDecimal)}</td></tr>`;
         }
@@ -532,7 +533,7 @@
     }
 
     // --------------------------------------------------------------
-    // Funciones comunes y procesadores (igual que antes)
+    // Funciones comunes y procesadores
     // --------------------------------------------------------------
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;'); }
 
