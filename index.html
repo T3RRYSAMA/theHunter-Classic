@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias (con descripción)</title>
+    <title>theHunter Data Processor - Habilidades incluidas</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -27,6 +27,7 @@
             gap: 0.5rem;
             margin-bottom: 1.5rem;
             border-bottom: 1px solid #334155;
+            flex-wrap: wrap;
         }
         .tab-btn {
             background: none;
@@ -93,6 +94,7 @@
             background-color: #2c4c40;
             color: #fbbf24;
             cursor: pointer;
+            user-select: none;
         }
         .output-text {
             background-color: #0f172a;
@@ -122,8 +124,10 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="scores">🏆 Mejores Puntuaciones</button>
         <button class="tab-btn" data-tab="comps">⚔️ Competencias</button>
+        <button class="tab-btn" data-tab="skills">📊 Habilidades</button>
     </div>
 
+    <!-- Pestaña Mejores Puntuaciones -->
     <div id="scores-tab" class="tab-pane active">
         <p>Pega el contenido de la página <strong>"Mejores puntuaciones personales"</strong>.</p>
         <textarea id="scoresInput" placeholder="Pega aquí..."></textarea>
@@ -136,6 +140,7 @@
         </div>
     </div>
 
+    <!-- Pestaña Competencias -->
     <div id="comps-tab" class="tab-pane">
         <p>Pega el contenido completo de la página <strong>"Competencias"</strong> (selecciona todo y copia).</p>
         <textarea id="compsInput" placeholder="Pega aquí..."></textarea>
@@ -147,11 +152,24 @@
             <div id="compsOutput" class="output-text"></div>
         </div>
     </div>
+
+    <!-- Pestaña Habilidades (NUEVA) -->
+    <div id="skills-tab" class="tab-pane">
+        <p>Copia el <strong>código HTML del frame</strong> (inspecciona la página, busca <code>#profile_content</code> o <code>.skills-content</code>, cópialo como HTML).</p>
+        <textarea id="skillsInput" placeholder="Pega aquí el HTML..."></textarea>
+        <button id="processSkillsBtn">🚀 PROCESAR</button>
+        <div class="status" id="skillsStatus">✅ Listo.</div>
+        <div class="result-area">
+            <div id="skillsTableContainer">👉 Presiona "PROCESAR"</div>
+            <hr>
+            <div id="skillsOutput" class="output-text"></div>
+        </div>
+    </div>
 </div>
 
 <script>
     // --------------------------------------------------------------
-    // 1. MEJORES PUNTUACIONES (código probado)
+    // 1. MEJORES PUNTUACIONES (código probado, ligeramente simplificado)
     // --------------------------------------------------------------
     const ESPECIES_OFICIALES = new Set([
         "Alce", "Banteng", "Bisonte", "Búfalo de Agua", "Cabra Salvaje", "Canguro rojo",
@@ -235,7 +253,7 @@
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS - CON DESCRIPCIÓN Y POSICIÓN VACÍA
+    // 2. COMPETENCIAS (código ya probado)
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -263,9 +281,7 @@
         texto = texto.replace(/\s*\(Típico\)/g, '');
         const speciesSet = new Set();
         for (let sp of ESPECIES_OFICIALES) {
-            if (texto.includes(sp)) {
-                speciesSet.add(sp);
-            }
+            if (texto.includes(sp)) speciesSet.add(sp);
         }
         let especiesFinal = speciesSet.size > 0 ? Array.from(speciesSet).join(" + ") : texto;
         return { especies: especiesFinal, modalidad: modalidad };
@@ -275,15 +291,11 @@
         const lines = texto.split(/\r?\n/);
         let inicio = -1;
         for (let i = 0; i < lines.length; i++) {
-            if (lines[i].includes("Enrolled competitions") && lines[i].includes("(")) {
-                inicio = i;
-                break;
-            }
+            if (lines[i].includes("Enrolled competitions") && lines[i].includes("(")) { inicio = i; break; }
         }
         if (inicio === -1) return [];
         let idx = inicio + 1;
         while (idx < lines.length && (lines[idx].trim() === "" || lines[idx].includes("Nombre de Competición"))) idx++;
-        
         const competencias = [];
         while (idx + 2 < lines.length) {
             const nombre = lines[idx].trim();
@@ -291,143 +303,85 @@
             const especieRaw = lines[idx+1].trim();
             const datosLine = lines[idx+2].trim();
             if (datosLine === "") break;
-            
-            let partes;
-            if (datosLine.includes('\t')) {
-                partes = datosLine.split('\t');
-            } else {
-                partes = datosLine.split(/\s{2,}/);
-            }
-            if (partes.length < 6) {
-                idx += 3;
-                continue;
-            }
+            let partes = datosLine.includes('\t') ? datosLine.split('\t') : datosLine.split(/\s{2,}/);
+            if (partes.length < 6) { idx += 3; continue; }
             const intentos = partes[0];
             let posicion = partes[1];
-            // Reemplazar "N/A" por vacío
             if (posicion === "N/A") posicion = "";
             const inicioFecha = partes[2];
             const finalFecha = partes[3];
             const estado = partes[4];
-            
             const { especies, modalidad } = procesarEspecieYModalidad(especieRaw);
-            
             competencias.push({
-                nombre: nombre,
-                especies: especies,
-                intentosRaw: intentos,
-                posicion: posicion,
-                inicioRaw: inicioFecha,
-                finalRaw: finalFecha,
-                estado: estado,
-                modalidad: modalidad
+                nombre: nombre, especies: especies, intentosRaw: intentos, posicion: posicion,
+                inicioRaw: inicioFecha, finalRaw: finalFecha, estado: estado, modalidad: modalidad
             });
             idx += 3;
         }
         return competencias;
     }
-    
-    // Extraer listado global incluyendo descripción
+
     function extraerListadoGlobal(texto) {
         const lines = texto.split(/\r?\n/);
         let inicio = -1;
         for (let i = 0; i < lines.length; i++) {
-            if (lines[i].includes("Nombre de Competición") && lines[i].includes("Jugadores")) {
-                inicio = i;
-                break;
-            }
+            if (lines[i].includes("Nombre de Competición") && lines[i].includes("Jugadores")) { inicio = i; break; }
         }
         if (inicio === -1) return [];
         let idx = inicio + 1;
         while (idx < lines.length && lines[idx].trim() === "") idx++;
-        
         const competencias = [];
         while (idx < lines.length) {
             const nombre = lines[idx].trim();
             if (nombre === "" || nombre.includes("RECLUTA") || nombre.includes("DEVELOPED")) break;
             if (idx+1 >= lines.length) break;
             const especieRaw = lines[idx+1].trim();
-            
-            // Capturar descripción (línea siguiente a la especie, pero puede haber requisitos después)
-            let descripcion = "";
             let dataIdx = idx+2;
             let datosLine = null;
             while (dataIdx < lines.length) {
                 const line = lines[dataIdx].trim();
-                // Si encontramos la línea con jugadores y fechas, terminamos la búsqueda
                 if (line.match(/^\s*\d+\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/)) {
                     datosLine = line;
                     break;
                 }
-                // Si la línea no está vacía y no comienza con número, es parte de la descripción
-                if (line !== "" && !line.match(/^\d+/)) {
-                    if (descripcion === "") descripcion = line;
-                    else descripcion += " " + line;
-                }
                 dataIdx++;
                 if (dataIdx - idx > 20) break;
             }
-            if (!datosLine) {
-                idx++;
-                continue;
-            }
-            
-            // Extraer jugadores
+            if (!datosLine) { idx++; continue; }
             const jugadoresMatch = datosLine.match(/^\s*(\d+)/);
             let jugadores = jugadoresMatch ? parseInt(jugadoresMatch[1]) : 0;
-            
-            // Extraer fechas
             const fechaRegex = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}(?:th|st|nd|rd)\s+\d{2}:\d{2}\s+ART/g;
             const fechas = datosLine.match(fechaRegex);
             let inicioFecha = "", finalFecha = "";
-            if (fechas && fechas.length >= 2) {
-                inicioFecha = fechas[0];
-                finalFecha = fechas[1];
-            }
-            
+            if (fechas && fechas.length >= 2) { inicioFecha = fechas[0]; finalFecha = fechas[1]; }
             const { especies, modalidad } = procesarEspecieYModalidad(especieRaw);
-            
             competencias.push({
-                nombre: nombre,
-                especies: especies,
-                jugadores: jugadores,
-                inicioRaw: inicioFecha,
-                finalRaw: finalFecha,
-                modalidad: modalidad,
-                descripcion: descripcion
+                nombre: nombre, especies: especies, jugadores: jugadores,
+                inicioRaw: inicioFecha, finalRaw: finalFecha, modalidad: modalidad
             });
             idx = dataIdx + 1;
         }
         return competencias;
     }
-    
+
     function fusionarCompetencias(resumen, global) {
         const mapGlobal = new Map();
-        for (let g of global) {
-            mapGlobal.set(g.nombre, g);
-        }
+        for (let g of global) mapGlobal.set(g.nombre, g);
         const fusionadas = [];
         for (let r of resumen) {
             const g = mapGlobal.get(r.nombre);
             const jugadores = g ? g.jugadores : 0;
-            const descripcion = g ? g.descripcion : "";
             let modalidad = r.modalidad;
             if (!modalidad && g) modalidad = g.modalidad;
             fusionadas.push({
-                especies: r.especies,
-                nombre: r.nombre,
-                intentosRaw: r.intentosRaw,
-                posicion: r.posicion,
-                inicio: convertirFecha(r.inicioRaw),
-                final: convertirFecha(r.finalRaw),
-                jugadores: jugadores,
-                modalidad: modalidad,
-                descripcion: descripcion
+                especies: r.especies, nombre: r.nombre, intentosRaw: r.intentosRaw, posicion: r.posicion,
+                inicio: convertirFecha(r.inicioRaw), final: convertirFecha(r.finalRaw),
+                jugadores: jugadores, modalidad: modalidad
             });
         }
         return fusionadas;
     }
-    
+
     function ordenarCompetencias(lista) {
         return lista.sort((a,b) => {
             if (a.final !== b.final) return a.final.localeCompare(b.final);
@@ -437,40 +391,98 @@
             return a.jugadores - b.jugadores;
         });
     }
-    
+
     function generateCompsTabText(comps) {
-        let lines = [];
-        for (let i = 0; i < comps.length; i++) {
-            const c = comps[i];
-            lines.push(`${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.modalidad}\t${c.descripcion}`);
-        }
-        return lines.join('\n');
+        return comps.map((c, i) => `${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.modalidad}`).join('\n');
     }
-    
+
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
-        let html = `<table><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th><th>Descripción</th></tr></thead><tbody>`;
-        for (let i = 0; i < comps.length; i++) {
+        let html = `<table><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th></tr></thead><tbody>`;
+        for (let i=0; i<comps.length; i++) {
             const c = comps[i];
-            html += `<tr>
-                <td>${i+1}</td>
-                <td>${escapeHtml(c.especies)}</td>
-                <td>${escapeHtml(c.nombre)}</td>
-                <td>${escapeHtml(c.intentosRaw)}</td>
-                <td>${escapeHtml(c.posicion)}</td>
-                <td>${escapeHtml(c.inicio)}</td>
-                <td>${escapeHtml(c.final)}</td>
-                <td>${c.jugadores}</td>
-                <td>${escapeHtml(c.modalidad)}</td>
-                <td>${escapeHtml(c.descripcion)}</td>
-            </tr>`;
+            html += `<tr><td>${i+1}</td><td>${escapeHtml(c.especies)}</td><td>${escapeHtml(c.nombre)}</td><td>${escapeHtml(c.intentosRaw)}</td><td>${escapeHtml(c.posicion)}</td><td>${escapeHtml(c.inicio)}</td><td>${escapeHtml(c.final)}</td><td>${c.jugadores}</td><td>${escapeHtml(c.modalidad)}</td></tr>`;
         }
         html += `</tbody></table>`;
         return html;
     }
-    
+
+    // --------------------------------------------------------------
+    // 3. HABILIDADES - PARSEO DEL HTML (versión copiada del inspector)
+    // --------------------------------------------------------------
+    function parseSkillsFromHtml(htmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        // Buscar todos los bloques .skills-block-wrapper (cada especie)
+        const wrappers = doc.querySelectorAll('.skills-block-wrapper');
+        const datos = [];
+        for (let wrapper of wrappers) {
+            const titleDiv = wrapper.querySelector('.title');
+            if (!titleDiv) continue;
+            let animal = titleDiv.textContent.trim();
+            // Limpiar nombre (quitar "(Típico)" si lo hubiera)
+            animal = animal.replace(/\s*\(Típico\)/g, '');
+            // Buscar los dos stats (Seguimiento y Marcar)
+            const stats = wrapper.querySelectorAll('.stat');
+            let tracking = null, spotting = null;
+            for (let stat of stats) {
+                const statTitle = stat.querySelector('.stat-title');
+                if (!statTitle) continue;
+                const titleText = statTitle.textContent.trim();
+                const levelSpan = stat.querySelector('.level .level-inner');
+                const progressDiv = stat.querySelector('.skill-progress');
+                if (!levelSpan || !progressDiv) continue;
+                const level = parseInt(levelSpan.textContent.trim());
+                let progress = progressDiv.textContent.trim();
+                // Eliminar el % y convertir a número
+                progress = progress.replace('%', '');
+                const progressNum = parseInt(progress);
+                if (titleText === 'Seguimiento') {
+                    tracking = { nivel: level, progreso: progressNum };
+                } else if (titleText === 'Marcar') {
+                    spotting = { nivel: level, progreso: progressNum };
+                }
+            }
+            if (tracking && spotting) {
+                datos.push({
+                    animal: animal,
+                    trackingNivel: tracking.nivel,
+                    trackingProgreso: tracking.progreso,
+                    spottingNivel: spotting.nivel,
+                    spottingProgreso: spotting.progreso
+                });
+            }
+        }
+        // Ordenar por nombre de animal alfabéticamente (opcional, pero consistente)
+        datos.sort((a,b) => a.animal.localeCompare(b.animal));
+        return datos;
+    }
+
+    function generateSkillsTabText(datos) {
+        return datos.map(d => `${d.animal}\t${d.trackingNivel}\t${d.trackingProgreso}%\t${d.spottingNivel}\t${d.spottingProgreso}%`).join('\n');
+    }
+
+    function generateSkillsHtmlTable(datos) {
+        if (!datos.length) return '<p>No se encontraron datos de habilidades.</p>';
+        let html = `<table><thead><tr><th>Animal</th><th>Nivel de Seguimiento</th><th>Progreso de seguimiento</th><th>Nivel de Marcado</th><th>Progreso de Marcado</th></tr></thead><tbody>`;
+        for (let d of datos) {
+            html += `<tr>
+                <td>${escapeHtml(d.animal)}</td>
+                <td>${d.trackingNivel}</td>
+                <td>${d.trackingProgreso}%</td>
+                <td>${d.spottingNivel}</td>
+                <td>${d.spottingProgreso}%</td>
+            </tr>`;
+        }
+        html += `</tbody></tr>`;
+        return html;
+    }
+
+    // --------------------------------------------------------------
+    // Funciones comunes y procesadores
+    // --------------------------------------------------------------
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;'); }
-    
+
     async function processScores() {
         const statusDiv = document.getElementById('scoresStatus');
         try {
@@ -488,19 +500,16 @@
             statusDiv.innerHTML = "✅ Completado. Resultado copiado.";
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
-    
+
     async function processComps() {
         const statusDiv = document.getElementById('compsStatus');
         try {
             statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
             let text = await navigator.clipboard.readText();
             if (!text.trim()) throw new Error("Portapapeles vacío");
-            statusDiv.innerHTML = "⚙️ Extrayendo resumen...";
             const resumen = extraerResumen(text);
             if (resumen.length === 0) throw new Error("No se encontró la sección 'Enrolled competitions'.");
-            statusDiv.innerHTML = "⚙️ Extrayendo listado global...";
             const global = extraerListadoGlobal(text);
-            statusDiv.innerHTML = "⚙️ Fusionando y ordenando...";
             const fusionadas = fusionarCompetencias(resumen, global);
             const ordenadas = ordenarCompetencias(fusionadas);
             const tabText = generateCompsTabText(ordenadas);
@@ -508,16 +517,37 @@
             document.getElementById('compsTableContainer').innerHTML = htmlTable;
             document.getElementById('compsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas. Resultado copiado.`;
-        } catch(err) {
-            statusDiv.innerHTML = `❌ Error: ${err.message}`;
-            console.error(err);
-        }
+            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas.`;
+        } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
-    
+
+    async function processSkills() {
+        const statusDiv = document.getElementById('skillsStatus');
+        try {
+            statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
+            let htmlText = await navigator.clipboard.readText();
+            if (!htmlText.trim()) throw new Error("Portapapeles vacío");
+            // Verificar si parece HTML (contiene etiquetas)
+            if (!htmlText.includes('<div') && !htmlText.includes('skills-block-wrapper')) {
+                throw new Error("El contenido copiado no parece ser HTML de habilidades. Asegúrate de copiar el código HTML del frame (inspeccionar elemento).");
+            }
+            const datos = parseSkillsFromHtml(htmlText);
+            if (datos.length === 0) throw new Error("No se encontraron bloques de habilidades. Revisa que el HTML contenga .skills-block-wrapper");
+            const tabText = generateSkillsTabText(datos);
+            const htmlTable = generateSkillsHtmlTable(datos);
+            document.getElementById('skillsTableContainer').innerHTML = htmlTable;
+            document.getElementById('skillsOutput').innerText = tabText;
+            await navigator.clipboard.writeText(tabText);
+            statusDiv.innerHTML = `✅ Completado. ${datos.length} especies procesadas. Resultado copiado.`;
+        } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
+    }
+
+    // Eventos
     document.getElementById('processScoresBtn').addEventListener('click', processScores);
     document.getElementById('processCompsBtn').addEventListener('click', processComps);
-    
+    document.getElementById('processSkillsBtn').addEventListener('click', processSkills);
+
+    // Pestañas
     const tabs = document.querySelectorAll('.tab-btn');
     const panes = document.querySelectorAll('.tab-pane');
     tabs.forEach(btn => {
