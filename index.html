@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Habilidades incluidas</title>
+    <title>theHunter Data Processor - Niveles con decimales</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -94,7 +94,6 @@
             background-color: #2c4c40;
             color: #fbbf24;
             cursor: pointer;
-            user-select: none;
         }
         .output-text {
             background-color: #0f172a;
@@ -124,7 +123,8 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="scores">🏆 Mejores Puntuaciones</button>
         <button class="tab-btn" data-tab="comps">⚔️ Competencias</button>
-        <button class="tab-btn" data-tab="skills">📊 Habilidades</button>
+        <button class="tab-btn" data-tab="animalskills">📊 Habilidades Animales</button>
+        <button class="tab-btn" data-tab="weaponskills">🔫 Habilidades Armas</button>
     </div>
 
     <!-- Pestaña Mejores Puntuaciones -->
@@ -153,23 +153,36 @@
         </div>
     </div>
 
-    <!-- Pestaña Habilidades (NUEVA) -->
-    <div id="skills-tab" class="tab-pane">
-        <p>Copia el <strong>código HTML del frame</strong> (inspecciona la página, busca <code>#profile_content</code> o <code>.skills-content</code>, cópialo como HTML).</p>
-        <textarea id="skillsInput" placeholder="Pega aquí el HTML..."></textarea>
-        <button id="processSkillsBtn">🚀 PROCESAR</button>
-        <div class="status" id="skillsStatus">✅ Listo.</div>
+    <!-- Pestaña Habilidades Animales (con decimales) -->
+    <div id="animalskills-tab" class="tab-pane">
+        <p>Copia el <strong>código HTML del frame</strong> de habilidades de especies (inspecciona la página, busca <code>.skills-content</code>).</p>
+        <textarea id="animalskillsInput" placeholder="Pega aquí el HTML..."></textarea>
+        <button id="processAnimalSkillsBtn">🚀 PROCESAR</button>
+        <div class="status" id="animalSkillsStatus">✅ Listo.</div>
         <div class="result-area">
-            <div id="skillsTableContainer">👉 Presiona "PROCESAR"</div>
+            <div id="animalSkillsTableContainer">👉 Presiona "PROCESAR"</div>
             <hr>
-            <div id="skillsOutput" class="output-text"></div>
+            <div id="animalSkillsOutput" class="output-text"></div>
+        </div>
+    </div>
+
+    <!-- Pestaña Habilidades Armas (con decimales) -->
+    <div id="weaponskills-tab" class="tab-pane">
+        <p>Copia el <strong>código HTML del frame</strong> de habilidades de armas (inspecciona la página, busca <code>.skills-content</code> en la pestaña Armas).</p>
+        <textarea id="weaponskillsInput" placeholder="Pega aquí el HTML..."></textarea>
+        <button id="processWeaponSkillsBtn">🚀 PROCESAR</button>
+        <div class="status" id="weaponSkillsStatus">✅ Listo.</div>
+        <div class="result-area">
+            <div id="weaponSkillsTableContainer">👉 Presiona "PROCESAR"</div>
+            <hr>
+            <div id="weaponSkillsOutput" class="output-text"></div>
         </div>
     </div>
 </div>
 
 <script>
     // --------------------------------------------------------------
-    // 1. MEJORES PUNTUACIONES (código probado, ligeramente simplificado)
+    // 1. MEJORES PUNTUACIONES (sin cambios)
     // --------------------------------------------------------------
     const ESPECIES_OFICIALES = new Set([
         "Alce", "Banteng", "Bisonte", "Búfalo de Agua", "Cabra Salvaje", "Canguro rojo",
@@ -253,7 +266,7 @@
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS (código ya probado)
+    // 2. COMPETENCIAS (sin cambios)
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -403,26 +416,23 @@
             const c = comps[i];
             html += `<tr><td>${i+1}</td><td>${escapeHtml(c.especies)}</td><td>${escapeHtml(c.nombre)}</td><td>${escapeHtml(c.intentosRaw)}</td><td>${escapeHtml(c.posicion)}</td><td>${escapeHtml(c.inicio)}</td><td>${escapeHtml(c.final)}</td><td>${c.jugadores}</td><td>${escapeHtml(c.modalidad)}</td></tr>`;
         }
-        html += `</tbody></table>`;
+        html += `</tbody></tr>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 3. HABILIDADES - PARSEO DEL HTML (versión copiada del inspector)
+    // 3. HABILIDADES ANIMALES (con decimales)
     // --------------------------------------------------------------
-    function parseSkillsFromHtml(htmlText) {
+    function parseAnimalSkillsFromHtml(htmlText) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, 'text/html');
-        // Buscar todos los bloques .skills-block-wrapper (cada especie)
         const wrappers = doc.querySelectorAll('.skills-block-wrapper');
         const datos = [];
         for (let wrapper of wrappers) {
             const titleDiv = wrapper.querySelector('.title');
             if (!titleDiv) continue;
             let animal = titleDiv.textContent.trim();
-            // Limpiar nombre (quitar "(Típico)" si lo hubiera)
             animal = animal.replace(/\s*\(Típico\)/g, '');
-            // Buscar los dos stats (Seguimiento y Marcar)
             const stats = wrapper.querySelectorAll('.stat');
             let tracking = null, spotting = null;
             for (let stat of stats) {
@@ -433,9 +443,7 @@
                 const progressDiv = stat.querySelector('.skill-progress');
                 if (!levelSpan || !progressDiv) continue;
                 const level = parseInt(levelSpan.textContent.trim());
-                let progress = progressDiv.textContent.trim();
-                // Eliminar el % y convertir a número
-                progress = progress.replace('%', '');
+                let progress = progressDiv.textContent.trim().replace('%', '');
                 const progressNum = parseInt(progress);
                 if (titleText === 'Seguimiento') {
                     tracking = { nivel: level, progreso: progressNum };
@@ -444,42 +452,87 @@
                 }
             }
             if (tracking && spotting) {
+                // Calcular valor decimal: nivel + progreso/100
+                const trackingDecimal = tracking.nivel + tracking.progreso / 100;
+                const spottingDecimal = spotting.nivel + spotting.progreso / 100;
+                // Formatear con dos decimales (coma decimal)
+                const trackingStr = trackingDecimal.toFixed(2).replace('.', ',');
+                const spottingStr = spottingDecimal.toFixed(2).replace('.', ',');
                 datos.push({
                     animal: animal,
-                    trackingNivel: tracking.nivel,
-                    trackingProgreso: tracking.progreso,
-                    spottingNivel: spotting.nivel,
-                    spottingProgreso: spotting.progreso
+                    tracking: trackingStr,
+                    spotting: spottingStr
                 });
             }
         }
-        // Ordenar por nombre de animal alfabéticamente (opcional, pero consistente)
         datos.sort((a,b) => a.animal.localeCompare(b.animal));
         return datos;
     }
 
-    function generateSkillsTabText(datos) {
-        return datos.map(d => `${d.animal}\t${d.trackingNivel}\t${d.trackingProgreso}%\t${d.spottingNivel}\t${d.spottingProgreso}%`).join('\n');
+    function generateAnimalSkillsTabText(datos) {
+        return datos.map(d => `${d.animal}\t${d.tracking}\t${d.spotting}`).join('\n');
     }
 
-    function generateSkillsHtmlTable(datos) {
-        if (!datos.length) return '<p>No se encontraron datos de habilidades.</p>';
-        let html = `<table><thead><tr><th>Animal</th><th>Nivel de Seguimiento</th><th>Progreso de seguimiento</th><th>Nivel de Marcado</th><th>Progreso de Marcado</th></tr></thead><tbody>`;
+    function generateAnimalSkillsHtmlTable(datos) {
+        if (!datos.length) return '<p>No se encontraron datos.</p>';
+        let html = `</td><thead><tr><th>Animal</th><th>Seguimiento (nivel+progreso)</th><th>Marcado (nivel+progreso)</th></tr></thead><tbody>`;
         for (let d of datos) {
-            html += `<tr>
-                <td>${escapeHtml(d.animal)}</td>
-                <td>${d.trackingNivel}</td>
-                <td>${d.trackingProgreso}%</td>
-                <td>${d.spottingNivel}</td>
-                <td>${d.spottingProgreso}%</td>
-            </tr>`;
+            html += `<tr><td>${escapeHtml(d.animal)}</td><td>${escapeHtml(d.tracking)}</td><td>${escapeHtml(d.spotting)}</td></tr>`;
         }
-        html += `</tbody></tr>`;
+        html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // Funciones comunes y procesadores
+    // 4. HABILIDADES ARMAS (con decimales)
+    // --------------------------------------------------------------
+    function parseWeaponSkillsFromHtml(htmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        const wrappers = doc.querySelectorAll('.skills-block-wrapper');
+        const datos = [];
+        for (let wrapper of wrappers) {
+            const weaponTitle = wrapper.querySelector(':scope > .title');
+            if (!weaponTitle) continue;
+            let weaponName = weaponTitle.textContent.trim();
+            const variantElem = wrapper.querySelector(':scope > .stat-title');
+            let variant = variantElem ? variantElem.textContent.trim() : "";
+            let fullName = variant ? `${weaponName} (${variant})` : weaponName;
+            const statDiv = wrapper.querySelector('.stat');
+            if (!statDiv) continue;
+            const levelSpan = statDiv.querySelector('.level .level-inner');
+            const progressDiv = statDiv.querySelector('.skill-progress');
+            if (!levelSpan || !progressDiv) continue;
+            const nivel = parseInt(levelSpan.textContent.trim());
+            let progreso = progressDiv.textContent.trim().replace('%', '');
+            const progresoNum = parseInt(progreso);
+            const nivelDecimal = nivel + progresoNum / 100;
+            const nivelStr = nivelDecimal.toFixed(2).replace('.', ',');
+            datos.push({
+                arma: fullName,
+                nivelDecimal: nivelStr
+            });
+        }
+        datos.sort((a,b) => a.arma.localeCompare(b.arma));
+        return datos;
+    }
+
+    function generateWeaponSkillsTabText(datos) {
+        return datos.map(d => `${d.arma}\t${d.nivelDecimal}`).join('\n');
+    }
+
+    function generateWeaponSkillsHtmlTable(datos) {
+        if (!datos.length) return '<p>No se encontraron datos de armas.</p>';
+        let html = `</table><thead><tr><th>Arma</th><th>Nivel (decimal)</th></tr></thead><tbody>`;
+        for (let d of datos) {
+            html += `<tr><td>${escapeHtml(d.arma)}</td><td>${escapeHtml(d.nivelDecimal)}</td></tr>`;
+        }
+        html += `</tbody></table>`;
+        return html;
+    }
+
+    // --------------------------------------------------------------
+    // Funciones comunes y procesadores (igual que antes)
     // --------------------------------------------------------------
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;'); }
 
@@ -521,31 +574,47 @@
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
-    async function processSkills() {
-        const statusDiv = document.getElementById('skillsStatus');
+    async function processAnimalSkills() {
+        const statusDiv = document.getElementById('animalSkillsStatus');
         try {
             statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
             let htmlText = await navigator.clipboard.readText();
             if (!htmlText.trim()) throw new Error("Portapapeles vacío");
-            // Verificar si parece HTML (contiene etiquetas)
-            if (!htmlText.includes('<div') && !htmlText.includes('skills-block-wrapper')) {
-                throw new Error("El contenido copiado no parece ser HTML de habilidades. Asegúrate de copiar el código HTML del frame (inspeccionar elemento).");
-            }
-            const datos = parseSkillsFromHtml(htmlText);
-            if (datos.length === 0) throw new Error("No se encontraron bloques de habilidades. Revisa que el HTML contenga .skills-block-wrapper");
-            const tabText = generateSkillsTabText(datos);
-            const htmlTable = generateSkillsHtmlTable(datos);
-            document.getElementById('skillsTableContainer').innerHTML = htmlTable;
-            document.getElementById('skillsOutput').innerText = tabText;
+            if (!htmlText.includes('skills-block-wrapper')) throw new Error("El contenido no parece ser HTML de habilidades de animales.");
+            const datos = parseAnimalSkillsFromHtml(htmlText);
+            if (datos.length === 0) throw new Error("No se encontraron bloques de habilidades.");
+            const tabText = generateAnimalSkillsTabText(datos);
+            const htmlTable = generateAnimalSkillsHtmlTable(datos);
+            document.getElementById('animalSkillsTableContainer').innerHTML = htmlTable;
+            document.getElementById('animalSkillsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${datos.length} especies procesadas. Resultado copiado.`;
+            statusDiv.innerHTML = `✅ Completado. ${datos.length} especies procesadas.`;
+        } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
+    }
+
+    async function processWeaponSkills() {
+        const statusDiv = document.getElementById('weaponSkillsStatus');
+        try {
+            statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
+            let htmlText = await navigator.clipboard.readText();
+            if (!htmlText.trim()) throw new Error("Portapapeles vacío");
+            if (!htmlText.includes('skills-block-wrapper')) throw new Error("El contenido no parece ser HTML de habilidades de armas.");
+            const datos = parseWeaponSkillsFromHtml(htmlText);
+            if (datos.length === 0) throw new Error("No se encontraron bloques de armas.");
+            const tabText = generateWeaponSkillsTabText(datos);
+            const htmlTable = generateWeaponSkillsHtmlTable(datos);
+            document.getElementById('weaponSkillsTableContainer').innerHTML = htmlTable;
+            document.getElementById('weaponSkillsOutput').innerText = tabText;
+            await navigator.clipboard.writeText(tabText);
+            statusDiv.innerHTML = `✅ Completado. ${datos.length} armas procesadas.`;
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
     // Eventos
     document.getElementById('processScoresBtn').addEventListener('click', processScores);
     document.getElementById('processCompsBtn').addEventListener('click', processComps);
-    document.getElementById('processSkillsBtn').addEventListener('click', processSkills);
+    document.getElementById('processAnimalSkillsBtn').addEventListener('click', processAnimalSkills);
+    document.getElementById('processWeaponSkillsBtn').addEventListener('click', processWeaponSkills);
 
     // Pestañas
     const tabs = document.querySelectorAll('.tab-btn');
