@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Habilidades Armas Mejorado</title>
+    <title>theHunter Data Processor - Competencias con Descripción</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -140,7 +140,7 @@
         </div>
     </div>
 
-    <!-- Pestaña Competencias -->
+    <!-- Pestaña Competencias (con descripción) -->
     <div id="comps-tab" class="tab-pane">
         <p>Pega el contenido completo de la página <strong>"Competencias"</strong> (selecciona todo y copia).</p>
         <textarea id="compsInput" placeholder="Pega aquí..."></textarea>
@@ -166,7 +166,7 @@
         </div>
     </div>
 
-    <!-- Pestaña Habilidades Armas (Mejorada) -->
+    <!-- Pestaña Habilidades Armas (agrupadas por modelo) -->
     <div id="weaponskills-tab" class="tab-pane">
         <p>Copia el <strong>código HTML del frame</strong> de habilidades de armas (inspecciona la página, busca <code>.skills-content</code> en la pestaña Armas).</p>
         <textarea id="weaponskillsInput" placeholder="Pega aquí el HTML..."></textarea>
@@ -272,7 +272,7 @@
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS (sin cambios)
+    // 2. COMPETENCIAS (CON DESCRIPCIÓN RESTAURADA)
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -355,6 +355,7 @@
             if (nombre === "" || nombre.includes("RECLUTA") || nombre.includes("DEVELOPED")) break;
             if (idx+1 >= lines.length) break;
             const especieRaw = lines[idx+1].trim();
+            let descripcion = "";
             let dataIdx = idx+2;
             let datosLine = null;
             while (dataIdx < lines.length) {
@@ -362,6 +363,10 @@
                 if (line.match(/^\s*\d+\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/)) {
                     datosLine = line;
                     break;
+                }
+                if (line !== "" && !line.match(/^\d+/)) {
+                    if (descripcion === "") descripcion = line;
+                    else descripcion += " " + line;
                 }
                 dataIdx++;
                 if (dataIdx - idx > 20) break;
@@ -376,7 +381,8 @@
             const { especies, modalidad } = procesarEspecieYModalidad(especieRaw);
             competencias.push({
                 nombre: nombre, especies: especies, jugadores: jugadores,
-                inicioRaw: inicioFecha, finalRaw: finalFecha, modalidad: modalidad
+                inicioRaw: inicioFecha, finalRaw: finalFecha, modalidad: modalidad,
+                descripcion: descripcion
             });
             idx = dataIdx + 1;
         }
@@ -390,12 +396,13 @@
         for (let r of resumen) {
             const g = mapGlobal.get(r.nombre);
             const jugadores = g ? g.jugadores : 0;
+            const descripcion = g ? g.descripcion : "";
             let modalidad = r.modalidad;
             if (!modalidad && g) modalidad = g.modalidad;
             fusionadas.push({
                 especies: r.especies, nombre: r.nombre, intentosRaw: r.intentosRaw, posicion: r.posicion,
                 inicio: convertirFecha(r.inicioRaw), final: convertirFecha(r.finalRaw),
-                jugadores: jugadores, modalidad: modalidad
+                jugadores: jugadores, modalidad: modalidad, descripcion: descripcion
             });
         }
         return fusionadas;
@@ -412,12 +419,12 @@
     }
 
     function generateCompsTabText(comps) {
-        return comps.map((c, i) => `${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.modalidad}`).join('\n');
+        return comps.map((c, i) => `${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.modalidad}\t${c.descripcion}`).join('\n');
     }
 
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
-        let html = `<table><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th><th>Descripción</th></tr></thead><tbody>`;
         for (let i=0; i<comps.length; i++) {
             const c = comps[i];
             html += `<tr>
@@ -430,6 +437,7 @@
                 <td>${escapeHtml(c.final)}</td>
                 <td>${c.jugadores}</td>
                 <td>${escapeHtml(c.modalidad)}</td>
+                <td>${escapeHtml(c.descripcion)}</td>
             </tr>`;
         }
         html += `</tbody></table>`;
@@ -440,7 +448,6 @@
     // 3. HABILIDADES ANIMALES (concatenado: nivel,progreso)
     // --------------------------------------------------------------
     function formatLevelWithProgress(level, progress) {
-        // progress debe ser entero 0-100, lo formateamos a dos dígitos (00-99, 100% -> 00)
         let twoDigit = (progress % 100).toString().padStart(2, '0');
         return `${level},${twoDigit}`;
     }
@@ -493,7 +500,7 @@
 
     function generateAnimalSkillsHtmlTable(datos) {
         if (!datos.length) return '<p>No se encontraron datos.</p>';
-        let html = `<table><thead><tr><th>Animal</th><th>Seguimiento (nivel,progreso)</th><th>Marcado (nivel,progreso)</th></tr></thead><tbody>`;
+        let html = `<tr><thead><tr><th>Animal</th><th>Seguimiento (nivel,progreso)</th><th>Marcado (nivel,progreso)</th></tr></thead><tbody>`;
         for (let d of datos) {
             html += `<tr>
                 <td>${escapeHtml(d.animal)}</td>
@@ -506,22 +513,17 @@
     }
 
     // --------------------------------------------------------------
-    // 4. HABILIDADES ARMAS (Agrupadas por modelo base, descartando skins)
+    // 4. HABILIDADES ARMAS (Agrupadas por modelo base)
     // --------------------------------------------------------------
     function parseWeaponSkillsFromHtml(htmlText) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, 'text/html');
         const wrappers = doc.querySelectorAll('.skills-block-wrapper');
-        const armasMap = new Map(); // Usamos un Map para agrupar por nombre base
-
+        const armasMap = new Map();
         for (let wrapper of wrappers) {
             const weaponTitle = wrapper.querySelector(':scope > .title');
             if (!weaponTitle) continue;
             let weaponName = weaponTitle.textContent.trim();
-            const variantElem = wrapper.querySelector(':scope > .stat-title');
-            let variant = variantElem ? variantElem.textContent.trim() : "";
-            
-            // Obtenemos el nivel y progreso de esta variante
             const statDiv = wrapper.querySelector('.stat');
             if (!statDiv) continue;
             const levelSpan = statDiv.querySelector('.level .level-inner');
@@ -531,23 +533,15 @@
             let progreso = progressDiv.textContent.trim().replace('%', '');
             const progresoNum = parseInt(progreso);
             const nivelStr = formatLevelWithProgress(nivel, progresoNum);
-            
-            // Extraemos el nombre base del arma (quitando la variante entre paréntesis al final)
             let baseWeaponName = weaponName;
-            // Buscamos el último paréntesis que contenga la variante
             const lastParenIndex = baseWeaponName.lastIndexOf(' (');
             if (lastParenIndex !== -1) {
                 baseWeaponName = baseWeaponName.substring(0, lastParenIndex).trim();
             }
-            
-            // Si el nombre base no está en el mapa, lo agregamos
             if (!armasMap.has(baseWeaponName)) {
                 armasMap.set(baseWeaponName, nivelStr);
             }
-            // Si ya existe, no hacemos nada porque todas las variantes tienen el mismo nivel
         }
-        
-        // Convertimos el mapa a un array de objetos y ordenamos alfabéticamente
         const datos = Array.from(armasMap.entries()).map(([arma, nivelDecimal]) => ({
             arma: arma,
             nivelDecimal: nivelDecimal
@@ -612,7 +606,7 @@
             document.getElementById('compsTableContainer').innerHTML = htmlTable;
             document.getElementById('compsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas.`;
+            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas (con descripción).`;
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
