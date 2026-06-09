@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias con Descripción</title>
+    <title>theHunter Data Processor - Con nombre del jugador</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -140,7 +140,7 @@
         </div>
     </div>
 
-    <!-- Pestaña Competencias (con descripción) -->
+    <!-- Pestaña Competencias -->
     <div id="comps-tab" class="tab-pane">
         <p>Pega el contenido completo de la página <strong>"Competencias"</strong> (selecciona todo y copia).</p>
         <textarea id="compsInput" placeholder="Pega aquí..."></textarea>
@@ -153,9 +153,9 @@
         </div>
     </div>
 
-    <!-- Pestaña Habilidades Animales -->
+    <!-- Pestaña Habilidades Animales (con nombre jugador) -->
     <div id="animalskills-tab" class="tab-pane">
-        <p>Copia el <strong>código HTML del frame</strong> de habilidades de especies (inspecciona la página, busca <code>.skills-content</code>).</p>
+        <p>Copia el <strong>código HTML del frame</strong> que contenga las habilidades de especies (incluyendo el encabezado con el nombre del jugador).</p>
         <textarea id="animalskillsInput" placeholder="Pega aquí el HTML..."></textarea>
         <button id="processAnimalSkillsBtn">🚀 PROCESAR</button>
         <div class="status" id="animalSkillsStatus">✅ Listo.</div>
@@ -166,9 +166,9 @@
         </div>
     </div>
 
-    <!-- Pestaña Habilidades Armas (agrupadas por modelo) -->
+    <!-- Pestaña Habilidades Armas (con nombre jugador) -->
     <div id="weaponskills-tab" class="tab-pane">
-        <p>Copia el <strong>código HTML del frame</strong> de habilidades de armas (inspecciona la página, busca <code>.skills-content</code> en la pestaña Armas).</p>
+        <p>Copia el <strong>código HTML del frame</strong> que contenga las habilidades de armas (incluyendo el encabezado con el nombre del jugador).</p>
         <textarea id="weaponskillsInput" placeholder="Pega aquí el HTML..."></textarea>
         <button id="processWeaponSkillsBtn">🚀 PROCESAR</button>
         <div class="status" id="weaponSkillsStatus">✅ Listo.</div>
@@ -259,7 +259,7 @@
     }
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
-        let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
+        let html = `<tr><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
         for (let item of data) html += `<tr>
                 <td>${escapeHtml(username)}</td>
                 <td>${escapeHtml(item.especie)}</td>
@@ -272,7 +272,7 @@
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS (CON DESCRIPCIÓN RESTAURADA)
+    // 2. COMPETENCIAS (con descripción)
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -445,7 +445,24 @@
     }
 
     // --------------------------------------------------------------
-    // 3. HABILIDADES ANIMALES (concatenado: nivel,progreso)
+    // Funciones auxiliares para extraer nombre del jugador del HTML
+    // --------------------------------------------------------------
+    function extractPlayerNameFromHtml(htmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        // Buscar span con clase "user-name" (puede tener espacios)
+        const span = doc.querySelector('span.user-name, span[class*="user-name"]');
+        if (span) {
+            return span.textContent.trim();
+        }
+        // Fallback: buscar patrón en texto plano
+        const match = htmlText.match(/<span[^>]*class="[^"]*user-name[^"]*"[^>]*>([^<]+)</i);
+        if (match) return match[1].trim();
+        return "Jugador";
+    }
+
+    // --------------------------------------------------------------
+    // 3. HABILIDADES ANIMALES (con nombre jugador)
     // --------------------------------------------------------------
     function formatLevelWithProgress(level, progress) {
         let twoDigit = (progress % 100).toString().padStart(2, '0');
@@ -494,15 +511,16 @@
         return datos;
     }
 
-    function generateAnimalSkillsTabText(datos) {
-        return datos.map(d => `${d.animal}\t${d.tracking}\t${d.spotting}`).join('\n');
+    function generateAnimalSkillsTabText(playerName, datos) {
+        return datos.map(d => `${playerName}\t${d.animal}\t${d.tracking}\t${d.spotting}`).join('\n');
     }
 
-    function generateAnimalSkillsHtmlTable(datos) {
+    function generateAnimalSkillsHtmlTable(playerName, datos) {
         if (!datos.length) return '<p>No se encontraron datos.</p>';
-        let html = `<tr><thead><tr><th>Animal</th><th>Seguimiento (nivel,progreso)</th><th>Marcado (nivel,progreso)</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th>Jugador</th><th>Animal</th><th>Seguimiento (nivel,progreso)</th><th>Marcado (nivel,progreso)</th></tr></thead><tbody>`;
         for (let d of datos) {
             html += `<tr>
+                <td>${escapeHtml(playerName)}</td>
                 <td>${escapeHtml(d.animal)}</td>
                 <td>${escapeHtml(d.tracking)}</td>
                 <td>${escapeHtml(d.spotting)}</td>
@@ -513,7 +531,7 @@
     }
 
     // --------------------------------------------------------------
-    // 4. HABILIDADES ARMAS (Agrupadas por modelo base)
+    // 4. HABILIDADES ARMAS (con nombre jugador y agrupadas)
     // --------------------------------------------------------------
     function parseWeaponSkillsFromHtml(htmlText) {
         const parser = new DOMParser();
@@ -550,15 +568,16 @@
         return datos;
     }
 
-    function generateWeaponSkillsTabText(datos) {
-        return datos.map(d => `${d.arma}\t${d.nivelDecimal}`).join('\n');
+    function generateWeaponSkillsTabText(playerName, datos) {
+        return datos.map(d => `${playerName}\t${d.arma}\t${d.nivelDecimal}`).join('\n');
     }
 
-    function generateWeaponSkillsHtmlTable(datos) {
+    function generateWeaponSkillsHtmlTable(playerName, datos) {
         if (!datos.length) return '<p>No se encontraron datos de armas.</p>';
-        let html = `<table><thead><tr><th>Arma</th><th>Nivel (nivel,progreso)</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel (nivel,progreso)</th></tr></thead><tbody>`;
         for (let d of datos) {
             html += `<tr>
+                <td>${escapeHtml(playerName)}</td>
                 <td>${escapeHtml(d.arma)}</td>
                 <td>${escapeHtml(d.nivelDecimal)}</td>
             </tr>`;
@@ -568,7 +587,7 @@
     }
 
     // --------------------------------------------------------------
-    // Funciones comunes y procesadores
+    // Funciones comunes y procesadores (adaptados)
     // --------------------------------------------------------------
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;'); }
 
@@ -606,7 +625,7 @@
             document.getElementById('compsTableContainer').innerHTML = htmlTable;
             document.getElementById('compsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas (con descripción).`;
+            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas.`;
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
@@ -617,14 +636,15 @@
             let htmlText = await navigator.clipboard.readText();
             if (!htmlText.trim()) throw new Error("Portapapeles vacío");
             if (!htmlText.includes('skills-block-wrapper')) throw new Error("El contenido no parece ser HTML de habilidades de animales.");
+            const playerName = extractPlayerNameFromHtml(htmlText);
             const datos = parseAnimalSkillsFromHtml(htmlText);
             if (datos.length === 0) throw new Error("No se encontraron bloques de habilidades.");
-            const tabText = generateAnimalSkillsTabText(datos);
-            const htmlTable = generateAnimalSkillsHtmlTable(datos);
+            const tabText = generateAnimalSkillsTabText(playerName, datos);
+            const htmlTable = generateAnimalSkillsHtmlTable(playerName, datos);
             document.getElementById('animalSkillsTableContainer').innerHTML = htmlTable;
             document.getElementById('animalSkillsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${datos.length} especies procesadas.`;
+            statusDiv.innerHTML = `✅ Completado. ${datos.length} especies procesadas (jugador: ${playerName}).`;
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
@@ -635,14 +655,15 @@
             let htmlText = await navigator.clipboard.readText();
             if (!htmlText.trim()) throw new Error("Portapapeles vacío");
             if (!htmlText.includes('skills-block-wrapper')) throw new Error("El contenido no parece ser HTML de habilidades de armas.");
+            const playerName = extractPlayerNameFromHtml(htmlText);
             const datos = parseWeaponSkillsFromHtml(htmlText);
             if (datos.length === 0) throw new Error("No se encontraron bloques de armas.");
-            const tabText = generateWeaponSkillsTabText(datos);
-            const htmlTable = generateWeaponSkillsHtmlTable(datos);
+            const tabText = generateWeaponSkillsTabText(playerName, datos);
+            const htmlTable = generateWeaponSkillsHtmlTable(playerName, datos);
             document.getElementById('weaponSkillsTableContainer').innerHTML = htmlTable;
             document.getElementById('weaponSkillsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${datos.length} armas procesadas (agrupadas por modelo).`;
+            statusDiv.innerHTML = `✅ Completado. ${datos.length} armas procesadas (jugador: ${playerName}).`;
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
