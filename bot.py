@@ -6,6 +6,7 @@ import os
 import asyncio
 from flask import Flask
 from threading import Thread
+from datetime import datetime, timedelta
 
 # ==========================================
 # VARIABLES GLOBALES PARA DEPURACIÓN WEB
@@ -79,37 +80,85 @@ class MyBot(discord.Client):
             print(f"-> Se sincronizaron {len(synced)} comando(s) correctamente.")
         except Exception as e:
             print(f"-> Error sincronizando comandos: {e}")
+        
+        # 🔔 LANZAMIENTO DE LA TAREA PROGRAMADA DIARIA (04:05)
+        print("🕐 Iniciando tarea automática: Purga diaria de #thehunter-competencias a las 04:05...")
+        asyncio.create_task(purge_channel_at_0405())
 
 client = MyBot()
 
 # ==========================================
-# 3. LIMPIADOR DE FORMATO NUMÉRICO REGIONAL
+# 3. PURGA AUTOMÁTICA DIARIA (04:05)
+# ==========================================
+async def purge_channel_at_0405():
+    """
+    Rutina en segundo plano que elimina de forma absoluta todos los mensajes
+    del canal configurado cada día a las 04:05 AM (Hora del servidor).
+    """
+    # Usamos por defecto el ID de #thehunter-competencias extraído de tu URL
+    CANAL_ID = int(os.environ.get('CANAL_ID_PURGA', 732018294642442240))
+    
+    while True:
+        try:
+            now = datetime.now()
+            target = now.replace(hour=4, minute=5, second=0, microsecond=0)
+            
+            # Si ya pasó la hora fijada para el día de hoy, agendamos para mañana
+            if now >= target:
+                target += timedelta(days=1)
+            
+            wait_seconds = (target - now).total_seconds()
+            print(f"⏰ Purga diaria agendada. Esperando {wait_seconds:.2f} segundos hasta las 04:05")
+            
+            # Dormir asíncronamente hasta el momento exacto objetivo
+            await asyncio.sleep(wait_seconds)
+            
+            print(f"🗑️ Iniciando limpieza automática del canal ID {CANAL_ID}...")
+            
+            # Intentamos obtener el canal desde el mapa de memoria interno
+            channel = client.get_channel(CANAL_ID)
+            if not channel:
+                try:
+                    # Si no está en caché, forzamos llamada a la API de Discord
+                    channel = await client.fetch_channel(CANAL_ID)
+                except Exception:
+                    channel = None
+
+            if channel and isinstance(channel, discord.TextChannel):
+                # purge(limit=None) elimina TODO controlando paginación y el límite de los 14 días
+                mensajes_borrados = await channel.purge(limit=None)
+                print(f"✅ Purga completada con éxito. Se eliminaron {len(mensajes_borrados)} mensajes del canal #{channel.name}.")
+            else:
+                print(f"❌ Error crítico: No se encontró un canal de texto válido con el ID {CANAL_ID}")
+            
+            # Evitamos ejecuciones repetidas dentro del mismo minuto durmiendo 60s
+            await asyncio.sleep(60)
+            
+        except Exception as e:
+            print(f"❌ Error imprevisto dentro de la rutina de purga diaria: {e}")
+            # En caso de error de red en Render, espera 60 segundos y vuelve a intentar calcular el tiempo
+            await asyncio.sleep(60)
+
+# ==========================================
+# 4. LIMPIADOR DE FORMATO NUMÉRICO REGIONAL
 # ==========================================
 def convertir_puntaje(val_str):
-    """
-    Normaliza strings numéricos complejos de hojas de cálculo (ej: '3.873,1428' o '3,873.14')
-    a un valor float válido para Python.
-    """
     limpio = val_str.strip().replace(" ", "")
     if not limpio:
         raise ValueError("Celda vacía")
         
-    # Si contiene tanto puntos como comas (ej: 3.873,1428)
     if "." in limpio and "," in limpio:
         if limpio.rfind(",") > limpio.rfind("."):
-            # Formato europeo/argentino: 3.873,14 -> quitamos punto, cambiamos coma por punto
             limpio = limpio.replace(".", "").replace(",", ".")
         else:
-            # Formato norteamericano: 3,873.14 -> quitamos coma
             limpio = limpio.replace(",", "")
-    # Si solo tiene comas, asumimos que son los decimales
     elif "," in limpio and "." not in limpio:
         limpio = limpio.replace(",", ".")
         
     return float(limpio)
 
 # ==========================================
-# 4. LÓGICA DE DETECCIÓN ASÍNCRONA
+# 5. LÓGICA DE DETECCIÓN ASÍNCRONA (CSV)
 # ==========================================
 def descargar_datos_sincrono():
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtxyD8vW8K5yRaI53IpO2zu_seN9Zqq-lvFMWkQj6egxfs6cYGOQ-Rn1GABbij3X2_tACiFoVMT3jo/pub?gid=1783876917&output=csv"
@@ -138,9 +187,7 @@ async def buscar_en_tabla(termino_busqueda, usuario_discord):
         lineas = response.text.splitlines()
         datos_depuracion["filas_detectadas"] = len(lineas)
         
-        # ----------------------------------------------------
         # MODO JUGADOR
-        # ----------------------------------------------------
         jugador_objetivo = next((j for j in jugadores if termino_busqueda.lower() == j.lower()), None)
         
         if jugador_objetivo:
@@ -184,9 +231,7 @@ async def buscar_en_tabla(termino_busqueda, usuario_discord):
             datos_depuracion["ultima_respuesta"] = respuesta
             return respuesta
 
-        # ----------------------------------------------------
         # MODO ANIMAL
-        # ----------------------------------------------------
         lector_csv = csv.reader(lineas)
         for fila in lector_csv:
             if len(fila) < 2:
@@ -236,7 +281,7 @@ async def buscar_en_tabla(termino_busqueda, usuario_discord):
         return f"⚠️ Error interno al procesar la tabla: {error_str}"
 
 # ==========================================
-# 5. COMANDO DEL BOT
+# 6. COMANDO SLASCH DE DISCORD
 # ==========================================
 @client.tree.command(name="bot", description="Busca estadísticas de animales o jugadores")
 @app_commands.describe(buscar="Escribe un animal (ej: Corzo) o un jugador (ej: T3RRYSAMA)")
@@ -248,7 +293,7 @@ async def bot_command(interaction: discord.Interaction, buscar: str):
     await interaction.followup.send(resultado)
 
 # ==========================================
-# 6. CONTROL DE ARRANQUE EN PARALELO
+# 7. ARRANQUE DEL ENTORNO SIMULTÁNEO
 # ==========================================
 if __name__ == "__main__":
     proceso_web = Thread(target=run_web)
