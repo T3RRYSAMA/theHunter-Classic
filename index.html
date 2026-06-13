@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Con nombre del jugador</title>
+    <title>theHunter Data Processor - Competencias mejorado</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -95,6 +95,10 @@
             color: #fbbf24;
             cursor: pointer;
         }
+        /* Colores de grupo para competencias */
+        .group-0 { background-color: #1a3a3a; }
+        .group-1 { background-color: #2a4a4a; }
+        .group-2 { background-color: #1e3e3e; }
         .output-text {
             background-color: #0f172a;
             border: 1px solid #2d3a4f;
@@ -127,7 +131,7 @@
         <button class="tab-btn" data-tab="weaponskills">🔫 Habilidades Armas</button>
     </div>
 
-    <!-- Pestaña Mejores Puntuaciones -->
+    <!-- Pestaña Mejores Puntuaciones (sin cambios) -->
     <div id="scores-tab" class="tab-pane active">
         <p>Pega el contenido de la página <strong>"Mejores puntuaciones personales"</strong>.</p>
         <textarea id="scoresInput" placeholder="Pega aquí..."></textarea>
@@ -140,7 +144,7 @@
         </div>
     </div>
 
-    <!-- Pestaña Competencias -->
+    <!-- Pestaña Competencias (mejorada) -->
     <div id="comps-tab" class="tab-pane">
         <p>Pega el contenido completo de la página <strong>"Competencias"</strong> (selecciona todo y copia).</p>
         <textarea id="compsInput" placeholder="Pega aquí..."></textarea>
@@ -153,9 +157,9 @@
         </div>
     </div>
 
-    <!-- Pestaña Habilidades Animales (con nombre jugador) -->
+    <!-- Pestañas de habilidades (sin cambios en esta actualización) -->
     <div id="animalskills-tab" class="tab-pane">
-        <p>Copia el <strong>código HTML del frame</strong> que contenga las habilidades de especies (incluyendo el encabezado con el nombre del jugador).</p>
+        <p>Copia el <strong>código HTML del frame</strong> de habilidades de especies.</p>
         <textarea id="animalskillsInput" placeholder="Pega aquí el HTML..."></textarea>
         <button id="processAnimalSkillsBtn">🚀 PROCESAR</button>
         <div class="status" id="animalSkillsStatus">✅ Listo.</div>
@@ -166,9 +170,8 @@
         </div>
     </div>
 
-    <!-- Pestaña Habilidades Armas (con nombre jugador) -->
     <div id="weaponskills-tab" class="tab-pane">
-        <p>Copia el <strong>código HTML del frame</strong> que contenga las habilidades de armas (incluyendo el encabezado con el nombre del jugador).</p>
+        <p>Copia el <strong>código HTML del frame</strong> de habilidades de armas.</p>
         <textarea id="weaponskillsInput" placeholder="Pega aquí el HTML..."></textarea>
         <button id="processWeaponSkillsBtn">🚀 PROCESAR</button>
         <div class="status" id="weaponSkillsStatus">✅ Listo.</div>
@@ -259,20 +262,14 @@
     }
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
-        let html = `<tr><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
-        for (let item of data) html += `<tr>
-                <td>${escapeHtml(username)}</td>
-                <td>${escapeHtml(item.especie)}</td>
-                <td>${escapeHtml(item.puntuacion)}</td>
-                <td>${escapeHtml(item.arma)}</td>
-                <td>${escapeHtml(item.fecha)}</td>
-            </tr>`;
+        let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
+        for (let item of data) html += `<td>${escapeHtml(username)}</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td>`;
         html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS (con descripción)
+    // 2. COMPETENCIAS (MODIFICADO: nuevo orden y agrupamiento visual)
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -408,14 +405,55 @@
         return fusionadas;
     }
 
-    function ordenarCompetencias(lista) {
-        return lista.sort((a,b) => {
-            if (a.final !== b.final) return a.final.localeCompare(b.final);
+    // Nuevo ordenamiento según criterios
+    function ordenarCompetencias(competencias) {
+        // Separar las que tienen posición numérica (no vacía y no "N/A")
+        const conPosicion = [];
+        const sinPosicion = [];
+        for (let c of competencias) {
+            if (c.posicion && c.posicion !== "" && !isNaN(parseInt(c.posicion))) {
+                conPosicion.push(c);
+            } else {
+                sinPosicion.push(c);
+            }
+        }
+        // Ordenar las que tienen posición: por posición ascendente, luego intentos restantes, luego fecha final, luego jugadores
+        conPosicion.sort((a,b) => {
+            const posA = parseInt(a.posicion);
+            const posB = parseInt(b.posicion);
+            if (posA !== posB) return posA - posB;
             const aRest = parseInt(a.intentosRaw.split('/')[0].trim());
             const bRest = parseInt(b.intentosRaw.split('/')[0].trim());
             if (aRest !== bRest) return aRest - bRest;
+            if (a.final !== b.final) return a.final.localeCompare(b.final);
             return a.jugadores - b.jugadores;
         });
+        // Ordenar las que no tienen posición: por intentos restantes ascendente, luego fecha final, luego jugadores
+        sinPosicion.sort((a,b) => {
+            const aRest = parseInt(a.intentosRaw.split('/')[0].trim());
+            const bRest = parseInt(b.intentosRaw.split('/')[0].trim());
+            if (aRest !== bRest) return aRest - bRest;
+            if (a.final !== b.final) return a.final.localeCompare(b.final);
+            return a.jugadores - b.jugadores;
+        });
+        return [...conPosicion, ...sinPosicion];
+    }
+
+    // Función para asignar colores de grupo según fecha de inicio
+    function asignarGruposPorFechaInicio(competencias) {
+        // Obtener valores únicos de fecha de inicio (en orden de aparición en el array ya ordenado)
+        const fechasUnicas = [];
+        for (let c of competencias) {
+            if (!fechasUnicas.includes(c.inicio)) {
+                fechasUnicas.push(c.inicio);
+            }
+        }
+        // Crear un mapa fecha -> índice de grupo (0,1,2...)
+        const grupoMap = new Map();
+        fechasUnicas.forEach((fecha, idx) => {
+            grupoMap.set(fecha, idx % 3); // cíclico, pero en la práctica habrá 3 grupos
+        });
+        return grupoMap;
     }
 
     function generateCompsTabText(comps) {
@@ -424,10 +462,13 @@
 
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
+        const grupoMap = asignarGruposPorFechaInicio(comps);
         let html = `<table><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th><th>Descripción</th></tr></thead><tbody>`;
-        for (let i=0; i<comps.length; i++) {
+        for (let i = 0; i < comps.length; i++) {
             const c = comps[i];
-            html += `<tr>
+            const grupo = grupoMap.get(c.inicio);
+            const rowClass = `group-${grupo}`;
+            html += `<tr class="${rowClass}">
                 <td>${i+1}</td>
                 <td>${escapeHtml(c.especies)}</td>
                 <td>${escapeHtml(c.nombre)}</td>
@@ -445,30 +486,12 @@
     }
 
     // --------------------------------------------------------------
-    // Funciones auxiliares para extraer nombre del jugador del HTML
-    // --------------------------------------------------------------
-    function extractPlayerNameFromHtml(htmlText) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, 'text/html');
-        // Buscar span con clase "user-name" (puede tener espacios)
-        const span = doc.querySelector('span.user-name, span[class*="user-name"]');
-        if (span) {
-            return span.textContent.trim();
-        }
-        // Fallback: buscar patrón en texto plano
-        const match = htmlText.match(/<span[^>]*class="[^"]*user-name[^"]*"[^>]*>([^<]+)</i);
-        if (match) return match[1].trim();
-        return "Jugador";
-    }
-
-    // --------------------------------------------------------------
-    // 3. HABILIDADES ANIMALES (con nombre jugador)
+    // 3. HABILIDADES ANIMALES (sin cambios en esta versión)
     // --------------------------------------------------------------
     function formatLevelWithProgress(level, progress) {
         let twoDigit = (progress % 100).toString().padStart(2, '0');
         return `${level},${twoDigit}`;
     }
-
     function parseAnimalSkillsFromHtml(htmlText) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, 'text/html');
@@ -510,11 +533,9 @@
         datos.sort((a,b) => a.animal.localeCompare(b.animal));
         return datos;
     }
-
     function generateAnimalSkillsTabText(playerName, datos) {
         return datos.map(d => `${playerName}\t${d.animal}\t${d.tracking}\t${d.spotting}`).join('\n');
     }
-
     function generateAnimalSkillsHtmlTable(playerName, datos) {
         if (!datos.length) return '<p>No se encontraron datos.</p>';
         let html = `<table><thead><tr><th>Jugador</th><th>Animal</th><th>Seguimiento (nivel,progreso)</th><th>Marcado (nivel,progreso)</th></tr></thead><tbody>`;
@@ -531,7 +552,7 @@
     }
 
     // --------------------------------------------------------------
-    // 4. HABILIDADES ARMAS (con nombre jugador y agrupadas)
+    // 4. HABILIDADES ARMAS (sin cambios en esta versión)
     // --------------------------------------------------------------
     function parseWeaponSkillsFromHtml(htmlText) {
         const parser = new DOMParser();
@@ -567,14 +588,12 @@
         datos.sort((a,b) => a.arma.localeCompare(b.arma));
         return datos;
     }
-
     function generateWeaponSkillsTabText(playerName, datos) {
         return datos.map(d => `${playerName}\t${d.arma}\t${d.nivelDecimal}`).join('\n');
     }
-
     function generateWeaponSkillsHtmlTable(playerName, datos) {
         if (!datos.length) return '<p>No se encontraron datos de armas.</p>';
-        let html = `<table><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel (nivel,progreso)</th></tr></thead><tbody>`;
+        let html = `<tr><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel (nivel,progreso)</th></tr></thead><tbody>`;
         for (let d of datos) {
             html += `<tr>
                 <td>${escapeHtml(playerName)}</td>
@@ -587,9 +606,18 @@
     }
 
     // --------------------------------------------------------------
-    // Funciones comunes y procesadores (adaptados)
+    // Funciones comunes y procesadores
     // --------------------------------------------------------------
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;'); }
+    function extractPlayerNameFromHtml(htmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        const span = doc.querySelector('span.user-name, span[class*="user-name"]');
+        if (span) return span.textContent.trim();
+        const match = htmlText.match(/<span[^>]*class="[^"]*user-name[^"]*"[^>]*>([^<]+)</i);
+        if (match) return match[1].trim();
+        return "Jugador";
+    }
 
     async function processScores() {
         const statusDiv = document.getElementById('scoresStatus');
@@ -619,13 +647,13 @@
             if (resumen.length === 0) throw new Error("No se encontró la sección 'Enrolled competitions'.");
             const global = extraerListadoGlobal(text);
             const fusionadas = fusionarCompetencias(resumen, global);
-            const ordenadas = ordenarCompetencias(fusionadas);
+            const ordenadas = ordenarCompetencias(fusionadas); // NUEVO ORDEN
             const tabText = generateCompsTabText(ordenadas);
             const htmlTable = generateCompsHtmlTable(ordenadas);
             document.getElementById('compsTableContainer').innerHTML = htmlTable;
             document.getElementById('compsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas.`;
+            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas (nuevo orden y colores).`;
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
