@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias corregida</title>
+    <title>theHunter Data Processor - Competencias con nuevo orden</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -142,7 +142,7 @@
         </div>
     </div>
 
-    <!-- Pestaña Competencias (corregida) -->
+    <!-- Pestaña Competencias (nuevo orden) -->
     <div id="comps-tab" class="tab-pane">
         <p>Pega el contenido completo de la página <strong>"Competencias"</strong> (selecciona todo y copia).</p>
         <textarea id="compsInput" placeholder="Pega aquí..."></textarea>
@@ -184,7 +184,7 @@
 
 <script>
     // --------------------------------------------------------------
-    // 1. MEJORES PUNTUACIONES (breve, funcional)
+    // 1. MEJORES PUNTUACIONES (sin cambios, solo lo esencial)
     // --------------------------------------------------------------
     const ESPECIES_OFICIALES = new Set([
         "Alce", "Banteng", "Bisonte", "Búfalo de Agua", "Cabra Salvaje", "Canguro rojo",
@@ -261,14 +261,20 @@
     }
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
-        let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
-        for (let item of data) html += `<tr><td>${escapeHtml(username)}</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td></tr>`;
+        let html = `</td><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
+        for (let item of data) html += `<tr>
+                <td>${escapeHtml(username)}</td>
+                <td>${escapeHtml(item.especie)}</td>
+                <td>${escapeHtml(item.puntuacion)}</td>
+                <td>${escapeHtml(item.arma)}</td>
+                <td>${escapeHtml(item.fecha)}</td>
+            </tr>`;
         html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS (con funciones claras)
+    // 2. COMPETENCIAS (con nuevo orden)
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -411,6 +417,7 @@
         return competencias.filter(c => c.inicio !== maxInicio);
     }
 
+    // NUEVO ORDENAMIENTO
     function ordenarCompetencias(competencias) {
         const conPosicion = [];
         const sinPosicion = [];
@@ -418,19 +425,23 @@
             if (c.posicion && c.posicion !== "" && !isNaN(parseInt(c.posicion))) conPosicion.push(c);
             else sinPosicion.push(c);
         }
+        // Orden para las que tienen posición: por posición ascendente, luego fecha final ascendente, luego intentos restantes ascendente, luego jugadores ascendente
         conPosicion.sort((a,b) => {
-            if (parseInt(a.posicion) !== parseInt(b.posicion)) return parseInt(a.posicion) - parseInt(b.posicion);
-            const aRest = parseInt(a.intentosRaw.split('/')[0]);
-            const bRest = parseInt(b.intentosRaw.split('/')[0]);
-            if (aRest !== bRest) return aRest - bRest;
+            const posA = parseInt(a.posicion);
+            const posB = parseInt(b.posicion);
+            if (posA !== posB) return posA - posB;
             if (a.final !== b.final) return a.final.localeCompare(b.final);
+            const aRest = parseInt(a.intentosRaw.split('/')[0].trim());
+            const bRest = parseInt(b.intentosRaw.split('/')[0].trim());
+            if (aRest !== bRest) return aRest - bRest;
             return a.jugadores - b.jugadores;
         });
+        // Orden para las que NO tienen posición: por fecha final ascendente, luego intentos restantes ascendente, luego jugadores ascendente
         sinPosicion.sort((a,b) => {
-            const aRest = parseInt(a.intentosRaw.split('/')[0]);
-            const bRest = parseInt(b.intentosRaw.split('/')[0]);
-            if (aRest !== bRest) return aRest - bRest;
             if (a.final !== b.final) return a.final.localeCompare(b.final);
+            const aRest = parseInt(a.intentosRaw.split('/')[0].trim());
+            const bRest = parseInt(b.intentosRaw.split('/')[0].trim());
+            if (aRest !== bRest) return aRest - bRest;
             return a.jugadores - b.jugadores;
         });
         return [...conPosicion, ...sinPosicion];
@@ -448,7 +459,6 @@
         return comps.map((c, i) => `${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.descripcion}\t${c.modalidad}`).join('\n');
     }
 
-    // Función corregida que genera una tabla HTML correcta
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
         const grupoMap = asignarGruposPorFechaInicio(comps);
@@ -525,7 +535,12 @@
     function generateAnimalSkillsHtmlTable(playerName, datos) {
         if (!datos.length) return '<p>No hay datos</p>';
         let html = '<table><thead><tr><th>Jugador</th><th>Animal</th><th>Seguimiento</th><th>Marcado</th></tr></thead><tbody>';
-        for (let d of datos) html += `<tr><td>${escapeHtml(playerName)}</td><td>${escapeHtml(d.animal)}</td><td>${escapeHtml(d.tracking)}</td><td>${escapeHtml(d.spotting)}</td></tr>`;
+        for (let d of datos) html += `<tr>
+                <td>${escapeHtml(playerName)}</td>
+                <td>${escapeHtml(d.animal)}</td>
+                <td>${escapeHtml(d.tracking)}</td>
+                <td>${escapeHtml(d.spotting)}</td>
+            </tr>`;
         html += '</tbody></table>';
         return html;
     }
@@ -573,8 +588,12 @@
     }
     function generateWeaponSkillsHtmlTable(playerName, datos) {
         if (!datos.length) return '<p>No hay datos</p>';
-        let html = '<table><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel</th></tr></thead><tbody>';
-        for (let d of datos) html += `<tr><td>${escapeHtml(playerName)}</td><td>${escapeHtml(d.arma)}</td><td>${escapeHtml(d.nivelDecimal)}</td></tr>`;
+        let html = '<tr><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel</th></tr></thead><tbody>';
+        for (let d of datos) html += `<tr>
+                <td>${escapeHtml(playerName)}</td>
+                <td>${escapeHtml(d.arma)}</td>
+                <td>${escapeHtml(d.nivelDecimal)}</td>
+            </tr>`;
         html += '</tbody></table>';
         return html;
     }
@@ -661,13 +680,11 @@
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
-    // Eventos
     document.getElementById('processScoresBtn').addEventListener('click', processScores);
     document.getElementById('processCompsBtn').addEventListener('click', processComps);
     document.getElementById('processAnimalSkillsBtn').addEventListener('click', processAnimalSkills);
     document.getElementById('processWeaponSkillsBtn').addEventListener('click', processWeaponSkills);
 
-    // Pestañas
     const tabs = document.querySelectorAll('.tab-btn');
     const panes = document.querySelectorAll('.tab-pane');
     tabs.forEach(btn => {
