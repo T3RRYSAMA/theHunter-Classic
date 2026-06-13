@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias final</title>
+    <title>theHunter Data Processor - Competencias corregida</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -142,7 +142,7 @@
         </div>
     </div>
 
-    <!-- Pestaña Competencias (con filtro y columnas reordenadas) -->
+    <!-- Pestaña Competencias (corregida) -->
     <div id="comps-tab" class="tab-pane">
         <p>Pega el contenido completo de la página <strong>"Competencias"</strong> (selecciona todo y copia).</p>
         <textarea id="compsInput" placeholder="Pega aquí..."></textarea>
@@ -184,7 +184,7 @@
 
 <script>
     // --------------------------------------------------------------
-    // 1. MEJORES PUNTUACIONES (sin cambios)
+    // 1. MEJORES PUNTUACIONES (breve, funcional)
     // --------------------------------------------------------------
     const ESPECIES_OFICIALES = new Set([
         "Alce", "Banteng", "Bisonte", "Búfalo de Agua", "Cabra Salvaje", "Canguro rojo",
@@ -262,19 +262,13 @@
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
         let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
-        for (let item of data) html += `<tr>
-                <td>${escapeHtml(username)}</td>
-                <td>${escapeHtml(item.especie)}</td>
-                <td>${escapeHtml(item.puntuacion)}</td>
-                <td>${escapeHtml(item.arma)}</td>
-                <td>${escapeHtml(item.fecha)}</td>
-            </tr>`;
+        for (let item of data) html += `<tr><td>${escapeHtml(username)}</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td></tr>`;
         html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS (con filtro y nuevo orden de columnas)
+    // 2. COMPETENCIAS (con funciones claras)
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -410,40 +404,31 @@
         return fusionadas;
     }
 
-    // Filtrar el tercer grupo (fechas de inicio más lejanas)
     function filtrarUltimoGrupo(competencias) {
         if (competencias.length === 0) return competencias;
         let maxInicio = competencias[0].inicio;
-        for (let c of competencias) {
-            if (c.inicio > maxInicio) maxInicio = c.inicio;
-        }
+        for (let c of competencias) if (c.inicio > maxInicio) maxInicio = c.inicio;
         return competencias.filter(c => c.inicio !== maxInicio);
     }
 
-    // Ordenamiento según criterios
     function ordenarCompetencias(competencias) {
         const conPosicion = [];
         const sinPosicion = [];
         for (let c of competencias) {
-            if (c.posicion && c.posicion !== "" && !isNaN(parseInt(c.posicion))) {
-                conPosicion.push(c);
-            } else {
-                sinPosicion.push(c);
-            }
+            if (c.posicion && c.posicion !== "" && !isNaN(parseInt(c.posicion))) conPosicion.push(c);
+            else sinPosicion.push(c);
         }
         conPosicion.sort((a,b) => {
-            const posA = parseInt(a.posicion);
-            const posB = parseInt(b.posicion);
-            if (posA !== posB) return posA - posB;
-            const aRest = parseInt(a.intentosRaw.split('/')[0].trim());
-            const bRest = parseInt(b.intentosRaw.split('/')[0].trim());
+            if (parseInt(a.posicion) !== parseInt(b.posicion)) return parseInt(a.posicion) - parseInt(b.posicion);
+            const aRest = parseInt(a.intentosRaw.split('/')[0]);
+            const bRest = parseInt(b.intentosRaw.split('/')[0]);
             if (aRest !== bRest) return aRest - bRest;
             if (a.final !== b.final) return a.final.localeCompare(b.final);
             return a.jugadores - b.jugadores;
         });
         sinPosicion.sort((a,b) => {
-            const aRest = parseInt(a.intentosRaw.split('/')[0].trim());
-            const bRest = parseInt(b.intentosRaw.split('/')[0].trim());
+            const aRest = parseInt(a.intentosRaw.split('/')[0]);
+            const bRest = parseInt(b.intentosRaw.split('/')[0]);
             if (aRest !== bRest) return aRest - bRest;
             if (a.final !== b.final) return a.final.localeCompare(b.final);
             return a.jugadores - b.jugadores;
@@ -453,15 +438,9 @@
 
     function asignarGruposPorFechaInicio(competencias) {
         const fechasUnicas = [];
-        for (let c of competencias) {
-            if (!fechasUnicas.includes(c.inicio)) {
-                fechasUnicas.push(c.inicio);
-            }
-        }
+        for (let c of competencias) if (!fechasUnicas.includes(c.inicio)) fechasUnicas.push(c.inicio);
         const grupoMap = new Map();
-        fechasUnicas.forEach((fecha, idx) => {
-            grupoMap.set(fecha, idx % 2);
-        });
+        fechasUnicas.forEach((fecha, idx) => grupoMap.set(fecha, idx % 2));
         return grupoMap;
     }
 
@@ -469,33 +448,36 @@
         return comps.map((c, i) => `${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.descripcion}\t${c.modalidad}`).join('\n');
     }
 
+    // Función corregida que genera una tabla HTML correcta
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
         const grupoMap = asignarGruposPorFechaInicio(comps);
-        let html = `<td><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Descripción</th><th>Modalidad</th></tr></thead><tbody>`;
+        let html = '<table class="comp-table" style="width:100%; border-collapse: collapse;">';
+        html += '<thead><tr>';
+        html += '<th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Descripción</th><th>Modalidad</th>';
+        html += '</tr></thead><tbody>';
         for (let i = 0; i < comps.length; i++) {
             const c = comps[i];
             const grupo = grupoMap.get(c.inicio);
-            const rowClass = `group-${grupo}`;
-            html += `<tr class="${rowClass}">
-                <td>${i+1}</td>
-                <td>${escapeHtml(c.especies)}</td>
-                <td>${escapeHtml(c.nombre)}</td>
-                <td>${escapeHtml(c.intentosRaw)}</td>
-                <td>${escapeHtml(c.posicion)}</td>
-                <td>${escapeHtml(c.inicio)}</td>
-                <td>${escapeHtml(c.final)}</td>
-                <td>${c.jugadores}</td>
-                <td>${escapeHtml(c.descripcion)}</td>
-                <td>${escapeHtml(c.modalidad)}</td>
-            </tr>`;
+            html += `<tr class="group-${grupo}">`;
+            html += `<td>${i+1}</td>`;
+            html += `<td>${escapeHtml(c.especies)}</td>`;
+            html += `<td>${escapeHtml(c.nombre)}</td>`;
+            html += `<td>${escapeHtml(c.intentosRaw)}</td>`;
+            html += `<td>${escapeHtml(c.posicion)}</td>`;
+            html += `<td>${escapeHtml(c.inicio)}</td>`;
+            html += `<td>${escapeHtml(c.final)}</td>`;
+            html += `<td>${c.jugadores}</td>`;
+            html += `<td>${escapeHtml(c.descripcion)}</td>`;
+            html += `<td>${escapeHtml(c.modalidad)}</td>`;
+            html += `</tr>`;
         }
-        html += `</tbody></table>`;
+        html += '</tbody></table>';
         return html;
     }
 
     // --------------------------------------------------------------
-    // 3. HABILIDADES ANIMALES (sin cambios)
+    // 3. HABILIDADES ANIMALES (resumido)
     // --------------------------------------------------------------
     function formatLevelWithProgress(level, progress) {
         let twoDigit = (progress % 100).toString().padStart(2, '0');
@@ -523,19 +505,14 @@
                 const level = parseInt(levelSpan.textContent.trim());
                 let progress = progressDiv.textContent.trim().replace('%', '');
                 const progressNum = parseInt(progress);
-                if (titleText === 'Seguimiento') {
-                    tracking = { nivel: level, progreso: progressNum };
-                } else if (titleText === 'Marcar') {
-                    spotting = { nivel: level, progreso: progressNum };
-                }
+                if (titleText === 'Seguimiento') tracking = { nivel: level, progreso: progressNum };
+                else if (titleText === 'Marcar') spotting = { nivel: level, progreso: progressNum };
             }
             if (tracking && spotting) {
-                const trackingStr = formatLevelWithProgress(tracking.nivel, tracking.progreso);
-                const spottingStr = formatLevelWithProgress(spotting.nivel, spotting.progreso);
                 datos.push({
                     animal: animal,
-                    tracking: trackingStr,
-                    spotting: spottingStr
+                    tracking: formatLevelWithProgress(tracking.nivel, tracking.progreso),
+                    spotting: formatLevelWithProgress(spotting.nivel, spotting.progreso)
                 });
             }
         }
@@ -546,22 +523,23 @@
         return datos.map(d => `${playerName}\t${d.animal}\t${d.tracking}\t${d.spotting}`).join('\n');
     }
     function generateAnimalSkillsHtmlTable(playerName, datos) {
-        if (!datos.length) return '<p>No se encontraron datos.</p>';
-        let html = `<table><thead><tr><th>Jugador</th><th>Animal</th><th>Seguimiento (nivel,progreso)</th><th>Marcado (nivel,progreso)</th></tr></thead><tbody>`;
-        for (let d of datos) {
-            html += `<tr>
-                <td>${escapeHtml(playerName)}</td>
-                <td>${escapeHtml(d.animal)}</td>
-                <td>${escapeHtml(d.tracking)}</td>
-                <td>${escapeHtml(d.spotting)}</td>
-            </tr>`;
-        }
-        html += `</tbody><table>`;
+        if (!datos.length) return '<p>No hay datos</p>';
+        let html = '<table><thead><tr><th>Jugador</th><th>Animal</th><th>Seguimiento</th><th>Marcado</th></tr></thead><tbody>';
+        for (let d of datos) html += `<tr><td>${escapeHtml(playerName)}</td><td>${escapeHtml(d.animal)}</td><td>${escapeHtml(d.tracking)}</td><td>${escapeHtml(d.spotting)}</td></tr>`;
+        html += '</tbody></table>';
         return html;
+    }
+    function extractPlayerNameFromHtml(htmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        const span = doc.querySelector('span.user-name, span[class*="user-name"]');
+        if (span) return span.textContent.trim();
+        const match = htmlText.match(/<span[^>]*class="[^"]*user-name[^"]*"[^>]*>([^<]+)</i);
+        return match ? match[1].trim() : "Jugador";
     }
 
     // --------------------------------------------------------------
-    // 4. HABILIDADES ARMAS (sin cambios)
+    // 4. HABILIDADES ARMAS (resumido)
     // --------------------------------------------------------------
     function parseWeaponSkillsFromHtml(htmlText) {
         const parser = new DOMParser();
@@ -583,17 +561,10 @@
             const nivelStr = formatLevelWithProgress(nivel, progresoNum);
             let baseWeaponName = weaponName;
             const lastParenIndex = baseWeaponName.lastIndexOf(' (');
-            if (lastParenIndex !== -1) {
-                baseWeaponName = baseWeaponName.substring(0, lastParenIndex).trim();
-            }
-            if (!armasMap.has(baseWeaponName)) {
-                armasMap.set(baseWeaponName, nivelStr);
-            }
+            if (lastParenIndex !== -1) baseWeaponName = baseWeaponName.substring(0, lastParenIndex).trim();
+            if (!armasMap.has(baseWeaponName)) armasMap.set(baseWeaponName, nivelStr);
         }
-        const datos = Array.from(armasMap.entries()).map(([arma, nivelDecimal]) => ({
-            arma: arma,
-            nivelDecimal: nivelDecimal
-        }));
+        const datos = Array.from(armasMap.entries()).map(([arma, nivelDecimal]) => ({ arma, nivelDecimal }));
         datos.sort((a,b) => a.arma.localeCompare(b.arma));
         return datos;
     }
@@ -601,32 +572,17 @@
         return datos.map(d => `${playerName}\t${d.arma}\t${d.nivelDecimal}`).join('\n');
     }
     function generateWeaponSkillsHtmlTable(playerName, datos) {
-        if (!datos.length) return '<p>No se encontraron datos de armas.</p>';
-        let html = `<table><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel (nivel,progreso)</th></tr></thead><tbody>`;
-        for (let d of datos) {
-            html += `<tr>
-                <td>${escapeHtml(playerName)}</td>
-                <td>${escapeHtml(d.arma)}</td>
-                <td>${escapeHtml(d.nivelDecimal)}</td>
-            </tr>`;
-        }
-        html += `</tbody></table>`;
+        if (!datos.length) return '<p>No hay datos</p>';
+        let html = '<table><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel</th></tr></thead><tbody>';
+        for (let d of datos) html += `<tr><td>${escapeHtml(playerName)}</td><td>${escapeHtml(d.arma)}</td><td>${escapeHtml(d.nivelDecimal)}</td></tr>`;
+        html += '</tbody></table>';
         return html;
     }
 
     // --------------------------------------------------------------
-    // Funciones comunes y procesadores
+    // Funciones comunes y controladores
     // --------------------------------------------------------------
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;'); }
-    function extractPlayerNameFromHtml(htmlText) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, 'text/html');
-        const span = doc.querySelector('span.user-name, span[class*="user-name"]');
-        if (span) return span.textContent.trim();
-        const match = htmlText.match(/<span[^>]*class="[^"]*user-name[^"]*"[^>]*>([^<]+)</i);
-        if (match) return match[1].trim();
-        return "Jugador";
-    }
 
     async function processScores() {
         const statusDiv = document.getElementById('scoresStatus');
@@ -642,7 +598,7 @@
             document.getElementById('scoresTableContainer').innerHTML = htmlTable;
             document.getElementById('scoresOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = "✅ Completado. Resultado copiado.";
+            statusDiv.innerHTML = "✅ Completado.";
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
@@ -656,7 +612,6 @@
             if (resumen.length === 0) throw new Error("No se encontró la sección 'Enrolled competitions'.");
             const global = extraerListadoGlobal(text);
             let fusionadas = fusionarCompetencias(resumen, global);
-            // Aplicar filtro para eliminar el tercer grupo (competiciones no iniciadas)
             fusionadas = filtrarUltimoGrupo(fusionadas);
             const ordenadas = ordenarCompetencias(fusionadas);
             const tabText = generateCompsTabText(ordenadas);
@@ -664,7 +619,7 @@
             document.getElementById('compsTableContainer').innerHTML = htmlTable;
             document.getElementById('compsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas (excluidas las no iniciadas).`;
+            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones.`;
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
@@ -674,16 +629,16 @@
             statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
             let htmlText = await navigator.clipboard.readText();
             if (!htmlText.trim()) throw new Error("Portapapeles vacío");
-            if (!htmlText.includes('skills-block-wrapper')) throw new Error("El contenido no parece ser HTML de habilidades de animales.");
+            if (!htmlText.includes('skills-block-wrapper')) throw new Error("HTML inválido");
             const playerName = extractPlayerNameFromHtml(htmlText);
             const datos = parseAnimalSkillsFromHtml(htmlText);
-            if (datos.length === 0) throw new Error("No se encontraron bloques de habilidades.");
+            if (!datos.length) throw new Error("No se encontraron datos");
             const tabText = generateAnimalSkillsTabText(playerName, datos);
             const htmlTable = generateAnimalSkillsHtmlTable(playerName, datos);
             document.getElementById('animalSkillsTableContainer').innerHTML = htmlTable;
             document.getElementById('animalSkillsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${datos.length} especies procesadas (jugador: ${playerName}).`;
+            statusDiv.innerHTML = `✅ Completado. ${datos.length} especies.`;
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
@@ -693,16 +648,16 @@
             statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
             let htmlText = await navigator.clipboard.readText();
             if (!htmlText.trim()) throw new Error("Portapapeles vacío");
-            if (!htmlText.includes('skills-block-wrapper')) throw new Error("El contenido no parece ser HTML de habilidades de armas.");
+            if (!htmlText.includes('skills-block-wrapper')) throw new Error("HTML inválido");
             const playerName = extractPlayerNameFromHtml(htmlText);
             const datos = parseWeaponSkillsFromHtml(htmlText);
-            if (datos.length === 0) throw new Error("No se encontraron bloques de armas.");
+            if (!datos.length) throw new Error("No se encontraron datos");
             const tabText = generateWeaponSkillsTabText(playerName, datos);
             const htmlTable = generateWeaponSkillsHtmlTable(playerName, datos);
             document.getElementById('weaponSkillsTableContainer').innerHTML = htmlTable;
             document.getElementById('weaponSkillsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${datos.length} armas procesadas (jugador: ${playerName}).`;
+            statusDiv.innerHTML = `✅ Completado. ${datos.length} armas.`;
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
