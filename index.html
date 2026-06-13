@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias mejorado</title>
+    <title>theHunter Data Processor - Competencias final</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -95,10 +95,8 @@
             color: #fbbf24;
             cursor: pointer;
         }
-        /* Colores de grupo para competencias */
         .group-0 { background-color: #1a3a3a; }
         .group-1 { background-color: #2a4a4a; }
-        .group-2 { background-color: #1e3e3e; }
         .output-text {
             background-color: #0f172a;
             border: 1px solid #2d3a4f;
@@ -131,7 +129,7 @@
         <button class="tab-btn" data-tab="weaponskills">🔫 Habilidades Armas</button>
     </div>
 
-    <!-- Pestaña Mejores Puntuaciones (sin cambios) -->
+    <!-- Pestaña Mejores Puntuaciones -->
     <div id="scores-tab" class="tab-pane active">
         <p>Pega el contenido de la página <strong>"Mejores puntuaciones personales"</strong>.</p>
         <textarea id="scoresInput" placeholder="Pega aquí..."></textarea>
@@ -144,7 +142,7 @@
         </div>
     </div>
 
-    <!-- Pestaña Competencias (mejorada) -->
+    <!-- Pestaña Competencias (con filtro y columnas reordenadas) -->
     <div id="comps-tab" class="tab-pane">
         <p>Pega el contenido completo de la página <strong>"Competencias"</strong> (selecciona todo y copia).</p>
         <textarea id="compsInput" placeholder="Pega aquí..."></textarea>
@@ -157,7 +155,7 @@
         </div>
     </div>
 
-    <!-- Pestañas de habilidades (sin cambios en esta actualización) -->
+    <!-- Pestaña Habilidades Animales -->
     <div id="animalskills-tab" class="tab-pane">
         <p>Copia el <strong>código HTML del frame</strong> de habilidades de especies.</p>
         <textarea id="animalskillsInput" placeholder="Pega aquí el HTML..."></textarea>
@@ -170,6 +168,7 @@
         </div>
     </div>
 
+    <!-- Pestaña Habilidades Armas -->
     <div id="weaponskills-tab" class="tab-pane">
         <p>Copia el <strong>código HTML del frame</strong> de habilidades de armas.</p>
         <textarea id="weaponskillsInput" placeholder="Pega aquí el HTML..."></textarea>
@@ -263,13 +262,19 @@
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
         let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
-        for (let item of data) html += `<td>${escapeHtml(username)}</td><td>${escapeHtml(item.especie)}</td><td>${escapeHtml(item.puntuacion)}</td><td>${escapeHtml(item.arma)}</td><td>${escapeHtml(item.fecha)}</td>`;
+        for (let item of data) html += `<tr>
+                <td>${escapeHtml(username)}</td>
+                <td>${escapeHtml(item.especie)}</td>
+                <td>${escapeHtml(item.puntuacion)}</td>
+                <td>${escapeHtml(item.arma)}</td>
+                <td>${escapeHtml(item.fecha)}</td>
+            </tr>`;
         html += `</tbody></table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS (MODIFICADO: nuevo orden y agrupamiento visual)
+    // 2. COMPETENCIAS (con filtro y nuevo orden de columnas)
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -405,9 +410,18 @@
         return fusionadas;
     }
 
-    // Nuevo ordenamiento según criterios
+    // Filtrar el tercer grupo (fechas de inicio más lejanas)
+    function filtrarUltimoGrupo(competencias) {
+        if (competencias.length === 0) return competencias;
+        let maxInicio = competencias[0].inicio;
+        for (let c of competencias) {
+            if (c.inicio > maxInicio) maxInicio = c.inicio;
+        }
+        return competencias.filter(c => c.inicio !== maxInicio);
+    }
+
+    // Ordenamiento según criterios
     function ordenarCompetencias(competencias) {
-        // Separar las que tienen posición numérica (no vacía y no "N/A")
         const conPosicion = [];
         const sinPosicion = [];
         for (let c of competencias) {
@@ -417,7 +431,6 @@
                 sinPosicion.push(c);
             }
         }
-        // Ordenar las que tienen posición: por posición ascendente, luego intentos restantes, luego fecha final, luego jugadores
         conPosicion.sort((a,b) => {
             const posA = parseInt(a.posicion);
             const posB = parseInt(b.posicion);
@@ -428,7 +441,6 @@
             if (a.final !== b.final) return a.final.localeCompare(b.final);
             return a.jugadores - b.jugadores;
         });
-        // Ordenar las que no tienen posición: por intentos restantes ascendente, luego fecha final, luego jugadores
         sinPosicion.sort((a,b) => {
             const aRest = parseInt(a.intentosRaw.split('/')[0].trim());
             const bRest = parseInt(b.intentosRaw.split('/')[0].trim());
@@ -439,31 +451,28 @@
         return [...conPosicion, ...sinPosicion];
     }
 
-    // Función para asignar colores de grupo según fecha de inicio
     function asignarGruposPorFechaInicio(competencias) {
-        // Obtener valores únicos de fecha de inicio (en orden de aparición en el array ya ordenado)
         const fechasUnicas = [];
         for (let c of competencias) {
             if (!fechasUnicas.includes(c.inicio)) {
                 fechasUnicas.push(c.inicio);
             }
         }
-        // Crear un mapa fecha -> índice de grupo (0,1,2...)
         const grupoMap = new Map();
         fechasUnicas.forEach((fecha, idx) => {
-            grupoMap.set(fecha, idx % 3); // cíclico, pero en la práctica habrá 3 grupos
+            grupoMap.set(fecha, idx % 2);
         });
         return grupoMap;
     }
 
     function generateCompsTabText(comps) {
-        return comps.map((c, i) => `${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.modalidad}\t${c.descripcion}`).join('\n');
+        return comps.map((c, i) => `${i+1}\t${c.especies}\t${c.nombre}\t${c.intentosRaw}\t${c.posicion}\t${c.inicio}\t${c.final}\t${c.jugadores}\t${c.descripcion}\t${c.modalidad}`).join('\n');
     }
 
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
         const grupoMap = asignarGruposPorFechaInicio(comps);
-        let html = `<table><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Modalidad</th><th>Descripción</th></tr></thead><tbody>`;
+        let html = `<td><thead><tr><th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Descripción</th><th>Modalidad</th></tr></thead><tbody>`;
         for (let i = 0; i < comps.length; i++) {
             const c = comps[i];
             const grupo = grupoMap.get(c.inicio);
@@ -477,8 +486,8 @@
                 <td>${escapeHtml(c.inicio)}</td>
                 <td>${escapeHtml(c.final)}</td>
                 <td>${c.jugadores}</td>
-                <td>${escapeHtml(c.modalidad)}</td>
                 <td>${escapeHtml(c.descripcion)}</td>
+                <td>${escapeHtml(c.modalidad)}</td>
             </tr>`;
         }
         html += `</tbody></table>`;
@@ -486,7 +495,7 @@
     }
 
     // --------------------------------------------------------------
-    // 3. HABILIDADES ANIMALES (sin cambios en esta versión)
+    // 3. HABILIDADES ANIMALES (sin cambios)
     // --------------------------------------------------------------
     function formatLevelWithProgress(level, progress) {
         let twoDigit = (progress % 100).toString().padStart(2, '0');
@@ -547,12 +556,12 @@
                 <td>${escapeHtml(d.spotting)}</td>
             </tr>`;
         }
-        html += `</tbody></table>`;
+        html += `</tbody><table>`;
         return html;
     }
 
     // --------------------------------------------------------------
-    // 4. HABILIDADES ARMAS (sin cambios en esta versión)
+    // 4. HABILIDADES ARMAS (sin cambios)
     // --------------------------------------------------------------
     function parseWeaponSkillsFromHtml(htmlText) {
         const parser = new DOMParser();
@@ -593,7 +602,7 @@
     }
     function generateWeaponSkillsHtmlTable(playerName, datos) {
         if (!datos.length) return '<p>No se encontraron datos de armas.</p>';
-        let html = `<tr><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel (nivel,progreso)</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel (nivel,progreso)</th></tr></thead><tbody>`;
         for (let d of datos) {
             html += `<tr>
                 <td>${escapeHtml(playerName)}</td>
@@ -646,14 +655,16 @@
             const resumen = extraerResumen(text);
             if (resumen.length === 0) throw new Error("No se encontró la sección 'Enrolled competitions'.");
             const global = extraerListadoGlobal(text);
-            const fusionadas = fusionarCompetencias(resumen, global);
-            const ordenadas = ordenarCompetencias(fusionadas); // NUEVO ORDEN
+            let fusionadas = fusionarCompetencias(resumen, global);
+            // Aplicar filtro para eliminar el tercer grupo (competiciones no iniciadas)
+            fusionadas = filtrarUltimoGrupo(fusionadas);
+            const ordenadas = ordenarCompetencias(fusionadas);
             const tabText = generateCompsTabText(ordenadas);
             const htmlTable = generateCompsHtmlTable(ordenadas);
             document.getElementById('compsTableContainer').innerHTML = htmlTable;
             document.getElementById('compsOutput').innerText = tabText;
             await navigator.clipboard.writeText(tabText);
-            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas (nuevo orden y colores).`;
+            statusDiv.innerHTML = `✅ Completado. ${ordenadas.length} competiciones procesadas (excluidas las no iniciadas).`;
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
