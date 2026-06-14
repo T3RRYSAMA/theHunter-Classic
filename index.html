@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>theHunter Data Processor - Competencias con nuevo orden</title>
+    <title>theHunter Data Processor - Competencias corregido (colores por fecha final)</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -142,7 +142,7 @@
         </div>
     </div>
 
-    <!-- Pestaña Competencias (nuevo orden) -->
+    <!-- Pestaña Competencias -->
     <div id="comps-tab" class="tab-pane">
         <p>Pega el contenido completo de la página <strong>"Competencias"</strong> (selecciona todo y copia).</p>
         <textarea id="compsInput" placeholder="Pega aquí..."></textarea>
@@ -184,7 +184,7 @@
 
 <script>
     // --------------------------------------------------------------
-    // 1. MEJORES PUNTUACIONES (sin cambios, solo lo esencial)
+    // 1. MEJORES PUNTUACIONES (sin cambios)
     // --------------------------------------------------------------
     const ESPECIES_OFICIALES = new Set([
         "Alce", "Banteng", "Bisonte", "Búfalo de Agua", "Cabra Salvaje", "Canguro rojo",
@@ -261,7 +261,7 @@
     }
     function generateScoresHtmlTable(username, data) {
         if (!data.length) return '<p>No hay datos</p>';
-        let html = `</td><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th>Usuario</th><th>Especie</th><th>Puntuación</th><th>Arma</th><th>Fecha</th></tr></thead><tbody>`;
         for (let item of data) html += `<tr>
                 <td>${escapeHtml(username)}</td>
                 <td>${escapeHtml(item.especie)}</td>
@@ -274,7 +274,7 @@
     }
 
     // --------------------------------------------------------------
-    // 2. COMPETENCIAS (con nuevo orden)
+    // 2. COMPETENCIAS (con colores basados en fecha final)
     // --------------------------------------------------------------
     function convertirFecha(fechaStr) {
         const meses = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
@@ -417,7 +417,7 @@
         return competencias.filter(c => c.inicio !== maxInicio);
     }
 
-    // NUEVO ORDENAMIENTO
+    // Nuevo ordenamiento (sin cambios)
     function ordenarCompetencias(competencias) {
         const conPosicion = [];
         const sinPosicion = [];
@@ -425,7 +425,6 @@
             if (c.posicion && c.posicion !== "" && !isNaN(parseInt(c.posicion))) conPosicion.push(c);
             else sinPosicion.push(c);
         }
-        // Orden para las que tienen posición: por posición ascendente, luego fecha final ascendente, luego intentos restantes ascendente, luego jugadores ascendente
         conPosicion.sort((a,b) => {
             const posA = parseInt(a.posicion);
             const posB = parseInt(b.posicion);
@@ -436,7 +435,6 @@
             if (aRest !== bRest) return aRest - bRest;
             return a.jugadores - b.jugadores;
         });
-        // Orden para las que NO tienen posición: por fecha final ascendente, luego intentos restantes ascendente, luego jugadores ascendente
         sinPosicion.sort((a,b) => {
             if (a.final !== b.final) return a.final.localeCompare(b.final);
             const aRest = parseInt(a.intentosRaw.split('/')[0].trim());
@@ -447,11 +445,20 @@
         return [...conPosicion, ...sinPosicion];
     }
 
-    function asignarGruposPorFechaInicio(competencias) {
+    // CORREGIDO: agrupa por FECHA FINAL en lugar de inicio
+    function asignarGruposPorFechaFinal(competencias) {
         const fechasUnicas = [];
-        for (let c of competencias) if (!fechasUnicas.includes(c.inicio)) fechasUnicas.push(c.inicio);
+        for (let c of competencias) {
+            if (!fechasUnicas.includes(c.final)) {
+                fechasUnicas.push(c.final);
+            }
+        }
+        // Ordenar las fechas únicas de forma ascendente (las más cercanas primero)
+        fechasUnicas.sort((a,b) => a.localeCompare(b));
         const grupoMap = new Map();
-        fechasUnicas.forEach((fecha, idx) => grupoMap.set(fecha, idx % 2));
+        fechasUnicas.forEach((fecha, idx) => {
+            grupoMap.set(fecha, idx % 2);
+        });
         return grupoMap;
     }
 
@@ -461,14 +468,14 @@
 
     function generateCompsHtmlTable(comps) {
         if (!comps.length) return '<p>No se encontraron competiciones.</p>';
-        const grupoMap = asignarGruposPorFechaInicio(comps);
+        const grupoMap = asignarGruposPorFechaFinal(comps);
         let html = '<table class="comp-table" style="width:100%; border-collapse: collapse;">';
         html += '<thead><tr>';
         html += '<th>ID</th><th>Especies</th><th>Nombre</th><th>Intentos</th><th>Posición</th><th>Inicio</th><th>Final</th><th>Jugadores</th><th>Descripción</th><th>Modalidad</th>';
         html += '</tr></thead><tbody>';
         for (let i = 0; i < comps.length; i++) {
             const c = comps[i];
-            const grupo = grupoMap.get(c.inicio);
+            const grupo = grupoMap.get(c.final);
             html += `<tr class="group-${grupo}">`;
             html += `<td>${i+1}</td>`;
             html += `<td>${escapeHtml(c.especies)}</td>`;
@@ -588,13 +595,13 @@
     }
     function generateWeaponSkillsHtmlTable(playerName, datos) {
         if (!datos.length) return '<p>No hay datos</p>';
-        let html = '<tr><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel</th></tr></thead><tbody>';
+        let html = '<table><thead><tr><th>Jugador</th><th>Arma</th><th>Nivel</th></tr></thead><tbody>';
         for (let d of datos) html += `<tr>
                 <td>${escapeHtml(playerName)}</td>
                 <td>${escapeHtml(d.arma)}</td>
                 <td>${escapeHtml(d.nivelDecimal)}</td>
             </tr>`;
-        html += '</tbody></table>';
+        html += '</tbody></tr>';
         return html;
     }
 
