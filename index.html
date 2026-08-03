@@ -128,6 +128,7 @@
         <button class="tab-btn" data-tab="animalskills">📊 Habilidades Animales</button>
         <button class="tab-btn" data-tab="weaponskills">🔫 Habilidades Armas</button>
         <button class="tab-btn" data-tab="animalranks">🐾 Rango Animales</button>
+        <button class="tab-btn" data-tab="weaponranks">🗡️ Rango Armas</button>
     </div>
 
     <!-- Pestaña Mejores Puntuaciones -->
@@ -182,7 +183,7 @@
         </div>
     </div>
 
-    <!-- NUEVO: Pestaña Rango Animales -->
+    <!-- Pestaña Rango Animales -->
     <div id="animalranks-tab" class="tab-pane">
         <p>Copia el <strong>código HTML del frame</strong> de la sección "Animals" dentro de "Ranks".</p>
         <textarea id="animalranksInput" placeholder="Pega aquí el HTML..."></textarea>
@@ -192,6 +193,19 @@
             <div id="animalRanksTableContainer">👉 Presiona "PROCESAR"</div>
             <hr>
             <div id="animalRanksOutput" class="output-text"></div>
+        </div>
+    </div>
+
+    <!-- NUEVO: Pestaña Rango Armas -->
+    <div id="weaponranks-tab" class="tab-pane">
+        <p>Copia el <strong>código HTML del frame</strong> de la sección "Weapons" dentro de "Ranks".</p>
+        <textarea id="weaponranksInput" placeholder="Pega aquí el HTML..."></textarea>
+        <button id="processWeaponRanksBtn">🚀 PROCESAR</button>
+        <div class="status" id="weaponRanksStatus">✅ Listo.</div>
+        <div class="result-area">
+            <div id="weaponRanksTableContainer">👉 Presiona "PROCESAR"</div>
+            <hr>
+            <div id="weaponRanksOutput" class="output-text"></div>
         </div>
     </div>
 </div>
@@ -431,7 +445,6 @@
         return competencias.filter(c => c.inicio !== maxInicio);
     }
 
-    // Nuevo ordenamiento (sin cambios)
     function ordenarCompetencias(competencias) {
         const conPosicion = [];
         const sinPosicion = [];
@@ -459,7 +472,6 @@
         return [...conPosicion, ...sinPosicion];
     }
 
-    // CORREGIDO: agrupa por FECHA FINAL en lugar de inicio
     function asignarGruposPorFechaFinal(competencias) {
         const fechasUnicas = [];
         for (let c of competencias) {
@@ -467,7 +479,6 @@
                 fechasUnicas.push(c.final);
             }
         }
-        // Ordenar las fechas únicas de forma ascendente (las más cercanas primero)
         fechasUnicas.sort((a,b) => a.localeCompare(b));
         const grupoMap = new Map();
         fechasUnicas.forEach((fecha, idx) => {
@@ -620,10 +631,8 @@
     }
 
     // --------------------------------------------------------------
-    // 5. NUEVO: RANGOS ANIMALES (Traducción + Extracción)
+    // 5. RANGOS ANIMALES (Traducción + Extracción)
     // --------------------------------------------------------------
-    
-    // Mapeo inglés-español basado en el Set "ESPECIES_OFICIALES"
     const DICCIONARIO_ESPECIES = {
         "Alpine Ibex": "Íbice Alpino",
         "American Black Duck": "Ánade Sombrío Americano",
@@ -685,7 +694,6 @@
     function parseAnimalRanksFromHtml(htmlText) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, 'text/html');
-        // Se seleccionan todos los contenedores de los animales
         const containers = doc.querySelectorAll('.rank-container');
         const datos = [];
         
@@ -693,11 +701,9 @@
             const h4 = container.querySelector('h4');
             if (!h4) continue;
             
-            // Obtenemos el nombre en inglés y lo traducimos
             let animalEng = h4.textContent.trim();
             let animalEsp = traducirEspecie(animalEng);
 
-            // Se busca el último div dentro de "rank-bar-holder" que contiene el número total
             const scoreDiv = container.querySelector('.rank-bar-holder > div:last-child');
             let score = 0;
             if (scoreDiv) {
@@ -707,7 +713,6 @@
             datos.push({ animal: animalEsp, rango: score });
         }
         
-        // Ordenamos alfabéticamente por el nombre en español
         datos.sort((a,b) => a.animal.localeCompare(b.animal));
         return datos;
     }
@@ -723,6 +728,56 @@
             html += `<tr>
                 <td>${escapeHtml(playerName)}</td>
                 <td>${escapeHtml(d.animal)}</td>
+                <td>${escapeHtml(d.rango)}</td>
+            </tr>`;
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+    // --------------------------------------------------------------
+    // 6. NUEVO: RANGOS ARMAS
+    // --------------------------------------------------------------
+    function parseWeaponRanksFromHtml(htmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        // Usamos el mismo selector que los animales
+        const containers = doc.querySelectorAll('.rank-container');
+        const datos = [];
+        
+        for (let container of containers) {
+            const h4 = container.querySelector('h4');
+            if (!h4) continue;
+            
+            // Extraemos el nombre original (sin traducir)
+            let arma = h4.textContent.trim();
+
+            // Obtenemos el último div con el número
+            const scoreDiv = container.querySelector('.rank-bar-holder > div:last-child');
+            let score = 0;
+            if (scoreDiv) {
+                score = parseInt(scoreDiv.textContent.trim(), 10);
+            }
+            
+            datos.push({ arma: arma, rango: score });
+        }
+        
+        // Ordenamos alfabéticamente
+        datos.sort((a,b) => a.arma.localeCompare(b.arma));
+        return datos;
+    }
+
+    function generateWeaponRanksTabText(playerName, datos) {
+        return datos.map(d => `${playerName}\t${d.arma}\t${d.rango}`).join('\n');
+    }
+
+    function generateWeaponRanksHtmlTable(playerName, datos) {
+        if (!datos.length) return '<p>No hay datos</p>';
+        let html = '<table><thead><tr><th>Jugador</th><th>Arma</th><th>Rango</th></tr></thead><tbody>';
+        for (let d of datos) {
+            html += `<tr>
+                <td>${escapeHtml(playerName)}</td>
+                <td>${escapeHtml(d.arma)}</td>
                 <td>${escapeHtml(d.rango)}</td>
             </tr>`;
         }
@@ -813,7 +868,6 @@
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
-    // NUEVO: Controlador para procesar los rangos de animales
     async function processAnimalRanks() {
         const statusDiv = document.getElementById('animalRanksStatus');
         try {
@@ -833,14 +887,35 @@
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
+    // NUEVO: Controlador para procesar los rangos de armas
+    async function processWeaponRanks() {
+        const statusDiv = document.getElementById('weaponRanksStatus');
+        try {
+            statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
+            let htmlText = await navigator.clipboard.readText();
+            if (!htmlText.trim()) throw new Error("Portapapeles vacío");
+            if (!htmlText.includes('rank-container')) throw new Error("HTML inválido - No se encontraron rangos.");
+            const playerName = extractPlayerNameFromHtml(htmlText);
+            const datos = parseWeaponRanksFromHtml(htmlText);
+            if (!datos.length) throw new Error("No se encontraron datos de rangos de armas");
+            const tabText = generateWeaponRanksTabText(playerName, datos);
+            const htmlTable = generateWeaponRanksHtmlTable(playerName, datos);
+            document.getElementById('weaponRanksTableContainer').innerHTML = htmlTable;
+            document.getElementById('weaponRanksOutput').innerText = tabText;
+            await navigator.clipboard.writeText(tabText);
+            statusDiv.innerHTML = `✅ Completado. ${datos.length} rangos de armas tabulados.`;
+        } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
+    }
+
     // Registro de Event Listeners
     document.getElementById('processScoresBtn').addEventListener('click', processScores);
     document.getElementById('processCompsBtn').addEventListener('click', processComps);
     document.getElementById('processAnimalSkillsBtn').addEventListener('click', processAnimalSkills);
     document.getElementById('processWeaponSkillsBtn').addEventListener('click', processWeaponSkills);
-    
-    // NUEVO: Event listener para rangos de animales
     document.getElementById('processAnimalRanksBtn').addEventListener('click', processAnimalRanks);
+    
+    // NUEVO: Event listener para rangos de armas
+    document.getElementById('processWeaponRanksBtn').addEventListener('click', processWeaponRanks);
 
     // Sistema de Pestañas
     const tabs = document.querySelectorAll('.tab-btn');
