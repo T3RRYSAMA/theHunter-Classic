@@ -127,6 +127,7 @@
         <button class="tab-btn" data-tab="comps">⚔️ Competencias</button>
         <button class="tab-btn" data-tab="animalskills">📊 Habilidades Animales</button>
         <button class="tab-btn" data-tab="weaponskills">🔫 Habilidades Armas</button>
+        <button class="tab-btn" data-tab="animalranks">🐾 Rango Animales</button>
     </div>
 
     <!-- Pestaña Mejores Puntuaciones -->
@@ -178,6 +179,19 @@
             <div id="weaponSkillsTableContainer">👉 Presiona "PROCESAR"</div>
             <hr>
             <div id="weaponSkillsOutput" class="output-text"></div>
+        </div>
+    </div>
+
+    <!-- NUEVO: Pestaña Rango Animales -->
+    <div id="animalranks-tab" class="tab-pane">
+        <p>Copia el <strong>código HTML del frame</strong> de la sección "Animals" dentro de "Ranks".</p>
+        <textarea id="animalranksInput" placeholder="Pega aquí el HTML..."></textarea>
+        <button id="processAnimalRanksBtn">🚀 PROCESAR</button>
+        <div class="status" id="animalRanksStatus">✅ Listo.</div>
+        <div class="result-area">
+            <div id="animalRanksTableContainer">👉 Presiona "PROCESAR"</div>
+            <hr>
+            <div id="animalRanksOutput" class="output-text"></div>
         </div>
     </div>
 </div>
@@ -606,6 +620,118 @@
     }
 
     // --------------------------------------------------------------
+    // 5. NUEVO: RANGOS ANIMALES (Traducción + Extracción)
+    // --------------------------------------------------------------
+    
+    // Mapeo inglés-español basado en el Set "ESPECIES_OFICIALES"
+    const DICCIONARIO_ESPECIES = {
+        "Alpine Ibex": "Íbice Alpino",
+        "American Black Duck": "Ánade Sombrío Americano",
+        "Arctic Fox": "Zorro Ártico",
+        "Axis Deer": "Ciervo Axis",
+        "Banteng": "Banteng",
+        "Bighorn Sheep": "Muflón Canadiense",
+        "Bison": "Bisonte",
+        "Black Bear": "Oso Negro",
+        "Blacktail Deer": "Ciervo de Cola Negra",
+        "Bobcat": "Lince",
+        "Brown Bear": "Oso Pardo",
+        "Canada Goose": "Ganso de Canadá",
+        "Cottontail Rabbit": "Conejo de Cola de Algodón",
+        "Coyote": "Coyote",
+        "Dall Sheep": "Carnero de Dall",
+        "Eurasian Lynx": "Lince Boreal",
+        "European Rabbit": "Conejo Europeo",
+        "Fallow Deer": "Gamo",
+        "Feral Goat": "Cabra Salvaje",
+        "Feral Hog": "Cerdo Salvaje",
+        "Gadwall": "Ánade Friso",
+        "Grey Wolf": "Lobo Gris",
+        "Grizzly Bear": "Oso Grizzly",
+        "Magpie Goose": "Ganso Urraco",
+        "Mallard": "Ánade Real",
+        "Moose": "Alce",
+        "Mule Deer": "Ciervo Mulo",
+        "Northern Pintail": "Ánade Rabudo",
+        "Pheasant": "Faisán",
+        "Polar Bear": "Oso Polar",
+        "Puma": "Puma",
+        "Red Deer": "Ciervo Rojo",
+        "Red Fox": "Zorro Rojo",
+        "Red Kangaroo": "Canguro rojo",
+        "Reindeer": "Reno",
+        "Rock Ptarmigan": "Perdiz Nival",
+        "Rocky Mountain Elk": "Wapití de las Rocosas",
+        "Roe Deer": "Corzo",
+        "Roosevelt Elk": "Wapití de Roosevelt",
+        "Rusa Deer": "Ciervo de Timor",
+        "Sambar Deer": "Ciervo Sambar",
+        "Sitka Deer": "Ciervo Sitka",
+        "Snow Goose": "Ganso Nival",
+        "Snowshoe Hare": "Liebre Americana",
+        "Turkey": "Pavo",
+        "Water Buffalo": "Búfalo de Agua",
+        "White-tailed Ptarmigan": "Perdiz de Cola Blanca",
+        "Whitetail Deer": "Ciervo de Cola Blanca",
+        "Wild Boar": "Jabalí",
+        "Willow Ptarmigan": "Perdiz Nival de la Tundra",
+        "Wood Grouse": "Wood Grouse"
+    };
+
+    function traducirEspecie(nombreIngles) {
+        return DICCIONARIO_ESPECIES[nombreIngles] || nombreIngles;
+    }
+
+    function parseAnimalRanksFromHtml(htmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        // Se seleccionan todos los contenedores de los animales
+        const containers = doc.querySelectorAll('.rank-container');
+        const datos = [];
+        
+        for (let container of containers) {
+            const h4 = container.querySelector('h4');
+            if (!h4) continue;
+            
+            // Obtenemos el nombre en inglés y lo traducimos
+            let animalEng = h4.textContent.trim();
+            let animalEsp = traducirEspecie(animalEng);
+
+            // Se busca el último div dentro de "rank-bar-holder" que contiene el número total
+            const scoreDiv = container.querySelector('.rank-bar-holder > div:last-child');
+            let score = 0;
+            if (scoreDiv) {
+                score = parseInt(scoreDiv.textContent.trim(), 10);
+            }
+            
+            datos.push({ animal: animalEsp, rango: score });
+        }
+        
+        // Ordenamos alfabéticamente por el nombre en español
+        datos.sort((a,b) => a.animal.localeCompare(b.animal));
+        return datos;
+    }
+
+    function generateAnimalRanksTabText(playerName, datos) {
+        return datos.map(d => `${playerName}\t${d.animal}\t${d.rango}`).join('\n');
+    }
+
+    function generateAnimalRanksHtmlTable(playerName, datos) {
+        if (!datos.length) return '<p>No hay datos</p>';
+        let html = '<table><thead><tr><th>Jugador</th><th>Animal</th><th>Rango</th></tr></thead><tbody>';
+        for (let d of datos) {
+            html += `<tr>
+                <td>${escapeHtml(playerName)}</td>
+                <td>${escapeHtml(d.animal)}</td>
+                <td>${escapeHtml(d.rango)}</td>
+            </tr>`;
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+
+    // --------------------------------------------------------------
     // Funciones comunes y controladores
     // --------------------------------------------------------------
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;'); }
@@ -687,11 +813,36 @@
         } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
     }
 
+    // NUEVO: Controlador para procesar los rangos de animales
+    async function processAnimalRanks() {
+        const statusDiv = document.getElementById('animalRanksStatus');
+        try {
+            statusDiv.innerHTML = "⏳ Leyendo portapapeles...";
+            let htmlText = await navigator.clipboard.readText();
+            if (!htmlText.trim()) throw new Error("Portapapeles vacío");
+            if (!htmlText.includes('rank-container')) throw new Error("HTML inválido - No se encontraron rangos.");
+            const playerName = extractPlayerNameFromHtml(htmlText);
+            const datos = parseAnimalRanksFromHtml(htmlText);
+            if (!datos.length) throw new Error("No se encontraron datos de rangos");
+            const tabText = generateAnimalRanksTabText(playerName, datos);
+            const htmlTable = generateAnimalRanksHtmlTable(playerName, datos);
+            document.getElementById('animalRanksTableContainer').innerHTML = htmlTable;
+            document.getElementById('animalRanksOutput').innerText = tabText;
+            await navigator.clipboard.writeText(tabText);
+            statusDiv.innerHTML = `✅ Completado. ${datos.length} rangos de animales tabulados.`;
+        } catch(err) { statusDiv.innerHTML = `❌ Error: ${err.message}`; }
+    }
+
+    // Registro de Event Listeners
     document.getElementById('processScoresBtn').addEventListener('click', processScores);
     document.getElementById('processCompsBtn').addEventListener('click', processComps);
     document.getElementById('processAnimalSkillsBtn').addEventListener('click', processAnimalSkills);
     document.getElementById('processWeaponSkillsBtn').addEventListener('click', processWeaponSkills);
+    
+    // NUEVO: Event listener para rangos de animales
+    document.getElementById('processAnimalRanksBtn').addEventListener('click', processAnimalRanks);
 
+    // Sistema de Pestañas
     const tabs = document.querySelectorAll('.tab-btn');
     const panes = document.querySelectorAll('.tab-pane');
     tabs.forEach(btn => {
